@@ -14,6 +14,8 @@ on:
   # PR touches only players/custom/, so a docs/** filter here would
   # make every single student submission unmergeable. The build takes ~25s.
   pull_request:
+  # Run it by hand from the Actions tab, e.g. after changing repository settings.
+  workflow_dispatch:
 
 permissions:
   contents: read

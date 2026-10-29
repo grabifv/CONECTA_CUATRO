@@ -11,6 +11,8 @@ on:
     paths-ignore:
       - "results/**"
   pull_request:
+  # Run it by hand from the Actions tab, e.g. after changing repository settings.
+  workflow_dispatch:
 
 permissions:
   contents: read
