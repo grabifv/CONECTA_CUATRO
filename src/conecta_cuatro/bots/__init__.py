@@ -1,29 +1,34 @@
-"""Carpeta de bots: cualquier subclase de ``Bot`` definida aquí se carga sola."""
+"""Reusable strategy implementations that the shipped players are built from.
 
-import importlib
-import inspect
-import pkgutil
+These are **public API**: a submitted player is free to import one and configure
+or subclass it. Writing a bot from scratch is the real exercise, but starting from
+a working search — and beating it by improving only the heuristic — is a
+legitimate and instructive first submission.
 
-from ..jugadores import Bot
+The split throughout this package is between *searching* and *knowing*:
 
+* :class:`~conecta_cuatro.bots.minimax.MinimaxBot` searches. It holds no Connect Four knowledge
+  whatsoever, only negamax with alpha-beta plus one hook.
+* :class:`~conecta_cuatro.bots.basic_minimax.BasicMinimaxBot` and
+  :class:`~conecta_cuatro.bots.smart_minimax.SmartMinimaxBot` know things. They override
+  the hook and add nothing to the search.
 
-def cargar_bots():
-    """Devuelve {nombre: clase} con todos los bots de esta carpeta."""
-    encontrados = {}
-    for modulo_info in pkgutil.iter_modules(__path__):
-        if modulo_info.name.startswith("_"):
-            continue
-        try:
-            modulo = importlib.import_module(f"{__name__}.{modulo_info.name}")
-        except Exception as error:
-            print(f"Aviso: no se pudo cargar el bot '{modulo_info.name}': {error!r}")
-            continue
-        for _, clase in inspect.getmembers(modulo, inspect.isclass):
-            if (
-                issubclass(clase, Bot)
-                and clase is not Bot
-                and clase.__module__ == modulo.__name__
-                and not inspect.isabstract(clase)
-            ):
-                encontrados[clase.nombre] = clase
-    return dict(sorted(encontrados.items()))
+The players in ``players/`` add only *identity* — a name, authors, a description
+and a depth. See ``players/builtin/hard.py`` for the shortest complete example.
+"""
+
+from __future__ import annotations
+
+from .basic_minimax import BasicMinimaxBot
+from .greedy_bot import GreedyBot
+from .minimax import MinimaxBot
+from .random_bot import RandomBot
+from .smart_minimax import SmartMinimaxBot
+
+__all__ = [
+    "BasicMinimaxBot",
+    "GreedyBot",
+    "MinimaxBot",
+    "RandomBot",
+    "SmartMinimaxBot",
+]

@@ -1,0 +1,43 @@
+<section id="screen-about" class="screen hidden">
+  <div class="prose">
+    <h1>About Conecta Cuatro Arena</h1>
+    <p>
+      Connect Four (<em>Conecta Cuatro</em>) is played on a vertical grid, six
+      rows by seven columns by default. Players take turns dropping a piece into
+      a column; it falls to the lowest free cell. <strong>The first to line up
+      four pieces</strong> — horizontally, vertically or diagonally —
+      <strong>wins</strong>. If the grid fills up first, the game is a draw.
+    </p>
+    <h2>One source of truth</h2>
+    <p>
+      The game rules and every AI are written once, in Python. This page
+      loads that exact code through <strong>Pyodide</strong> (Python compiled
+      to WebAssembly) — the rules are never re-implemented in JavaScript. The
+      same code also runs the automated tournament in GitHub Actions.
+    </p>
+    <h2>Playing well (X-ray mode)</h2>
+    <p>
+      The centre column takes part in more lines than any other, so it is the
+      strongest opening. Beyond that, the game is about <strong>threats</strong>:
+      three in a row with a free fourth cell. Two threats at once cannot both
+      be blocked. Turn on <em>X-ray</em> during a game to see every column
+      scored by a 5-ply search, and the column it recommends.
+    </p>
+    <h2>Add your own AI</h2>
+    <p>
+      Anyone can submit a new player by Pull Request. See the
+      <a href="https://conecta-cuatro.readthedocs.io" target="_blank" rel="noopener">documentation</a>
+      and the
+      <a href="https://github.com/grabifv/CONECTA_CUATRO" target="_blank" rel="noopener">repository</a>.
+    </p>
+
+    <h2>Credits</h2>
+    <p class="author">
+      Conecta Cuatro Arena by <strong>grabifv</strong> —
+      <a href="https://github.com/grabifv" target="_blank" rel="noopener">github.com/grabifv</a>.
+      Built on the structure of
+      <a href="https://github.com/jparisu/nim-arena" target="_blank" rel="noopener">NIM Arena</a>
+      by Javier Paris (MIT license).
+    </p>
+  </div>
+</section>
