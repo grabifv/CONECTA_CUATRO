@@ -163,6 +163,9 @@ def main():
                 return
         except KeyboardInterrupt:
             print("\nVolviendo al menú...")
+        except EOFError:  # se cerró la entrada (Ctrl+Z / fin de fichero)
+            print("\n¡Hasta la próxima!")
+            return
 
 
 if __name__ == "__main__":

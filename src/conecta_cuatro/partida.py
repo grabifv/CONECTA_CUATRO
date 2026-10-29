@@ -44,10 +44,12 @@ def jugar_partida(jugador1, jugador2, mostrar=True, pausa=0.0):
             columna = actual.elegir_columna(
                 tablero.copia() if actual.es_bot else tablero, ficha
             )
-        except Abandono:
+        except (Abandono, EOFError):
             log(f"{actual} abandona la partida.")
             return Resultado(motivo="abandono", movimientos=len(tablero.historial))
         except Exception as error:  # un bot con fallos pierde la partida
+            if not actual.es_bot:
+                raise
             log(f"{actual} ha fallado ({error!r}) y pierde la partida.")
             return Resultado(rival, actual, "jugada inválida", len(tablero.historial))
 
