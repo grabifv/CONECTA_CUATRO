@@ -1,3 +1,3 @@
-from .conecta_cuatro import main
+from .cli import main
 
-main()
+raise SystemExit(main())
