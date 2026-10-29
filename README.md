@@ -141,8 +141,6 @@ docs/                      documentación de Read the Docs (MkDocs + Material), 
 tests/                     batería de pytest (y una prueba de arranque de la web con Node)
 ```
 
-## Créditos y licencia
+## Licencia
 
-[MIT](LICENSE). La estructura del proyecto (torneo, manifiestos, web, CI y la
-Guía) está adaptada de [NIM Arena](https://github.com/jparisu/nim-arena), de
-Javier Paris y colaboradores, también bajo licencia MIT.
+[MIT](LICENSE).
