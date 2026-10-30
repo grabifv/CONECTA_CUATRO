@@ -15,17 +15,17 @@
 function openingsText(cfg) {
   const boards = cfg.starting_states || [];
   const size = boards.length ? `${boards[0].length}×${boards[0][0].length}` : "?";
-  if (!Array.isArray(cfg.openings)) return `${boards.length} board(s) ${size}`;
-  const shown = cfg.openings.map((o) => (o.length ? o.map((c) => c + 1).join("-") : "empty"));
-  return `${size} · openings ${shown.join(", ")}`;
+  if (!Array.isArray(cfg.openings)) return `${boards.length} tablero(s) ${size}`;
+  const shown = cfg.openings.map((o) => (o.length ? o.map((c) => c + 1).join("-") : "vacía"));
+  return `${size} · aperturas ${shown.join(", ")}`;
 }
 const MEDALS = { 1: "🥇", 2: "🥈", 3: "🥉" };
 const fmtMs = (v) => (v == null ? "—" : `${Number(v).toFixed(v < 10 ? 3 : 1)} ms`);
-const MODE_LABEL = { simple: "Simple", league: "League", championship: "Championship" };
+const MODE_LABEL = { simple: "Todos contra todos", league: "Liga (Elo)", championship: "Campeonato" };
 const MODE_BLURB = {
-  simple: "Every pair plays one match; players are ranked by points (3 per win, 1 per draw).",
-  league: "Every pair plays one match; players are ranked by their Elo rating.",
-  championship: "A group phase (round-robin, top two advance) then a knockout bracket.",
+  simple: "Cada pareja juega un enfrentamiento; se ordena por puntos (3 por victoria, 1 por empate).",
+  league: "Cada pareja juega un enfrentamiento; se ordena por Elo.",
+  championship: "Fase de grupos (pasan los dos primeros) y después eliminatorias.",
 };
 
 async function loadScoreboard() {
@@ -43,7 +43,7 @@ async function loadScoreboard() {
     layout.classList.add("hidden");
     empty.classList.remove("hidden");
     empty.textContent =
-      "No leaderboard yet. Run the tournament (`conecta-cuatro-torneo`) or the tournament workflow to generate results/leaderboard.json.";
+      "Todavía no hay clasificación. Ejecuta el torneo (`conecta-cuatro-torneo`) o el workflow del torneo para generar results/leaderboard.json.";
     meta.textContent = "";
   }
 }
@@ -57,11 +57,11 @@ const SB = { data: null, useElo: false, mode: "simple", selected: new Set() };
 function rosterShape(data, cfg) {
   const counts = Object.values(cfg.player_copies || {});
   const entrants = (data.standings || []).length;
-  if (!counts.length) return `${cfg.player_repetition ?? "?"} per kind`;
+  if (!counts.length) return `${cfg.player_repetition ?? "?"} por tipo`;
   const lo = Math.min(...counts);
   const hi = Math.max(...counts);
-  const per = lo === hi ? `${lo} per kind` : `${lo}-${hi} per kind`;
-  return `${entrants} entrants, ${per}`;
+  const per = lo === hi ? `${lo} por tipo` : `${lo}-${hi} por tipo`;
+  return `${entrants} participantes, ${per}`;
 }
 
 function renderScoreboard(data) {
@@ -78,12 +78,12 @@ function renderScoreboard(data) {
   SB.useElo = useElo;
   SB.selected = new Set((data.standings || []).map((r) => r.player));
 
-  $("sb-title").textContent = `${MODE_LABEL[mode] || "Tournament"} results`;
+  $("sb-title").textContent = `Clasificación · ${MODE_LABEL[mode] || mode}`;
   $("sb-meta").textContent =
-    `Generated ${data.generated_at} · ${MODE_LABEL[mode] || mode} · ` +
-    `${rosterShape(data, cfg)} · ${cfg.repetitions ?? "?"} reps/board · ` +
+    `Generado el ${data.generated_at} · ${MODE_LABEL[mode] || mode} · ` +
+    `${rosterShape(data, cfg)} · ${cfg.repetitions ?? "?"} rep./tablero · ` +
     `${openingsText(cfg)} · ` +
-    `budget ${cfg.game_budget_ms != null ? cfg.game_budget_ms + " ms/game" : "none"}`;
+    `tiempo ${cfg.game_budget_ms != null ? cfg.game_budget_ms + " ms/partida" : "sin límite"}`;
 
   buildPlayerFilter();
   renderStructure(data, mode);   // tournament-wide: never filtered
@@ -105,8 +105,8 @@ function renderFiltered() {
   $("sb-filter-count").textContent = `${SB.selected.size}/${total}`;
   $("sb-filter-hint").textContent =
     SB.selected.size === total
-      ? "showing every player"
-      : `showing ${SB.selected.size} of ${total} players`;
+      ? "mostrando todos los jugadores"
+      : `mostrando ${SB.selected.size} de ${total} jugadores`;
 
   renderStandings(standings, SB.useElo);
   renderRadar(stats, SB.useElo);
@@ -153,11 +153,11 @@ const RADAR_AXES = [
   // The ranking axis when Elo is off (simple mode). Points live in the
   // standings, not in the per-player stats, so `radarValue` looks them up
   // there. Without this axis the triangle would collapse into a line.
-  { key: "points", label: "Points", higherIsBetter: true },
-  { key: "win_rate", label: "Win rate", higherIsBetter: true },
+  { key: "points", label: "Puntos", higherIsBetter: true },
+  { key: "win_rate", label: "% victorias", higherIsBetter: true },
   // Faster thinking should read as "better", i.e. further from the centre — so
   // this axis is inverted. Without that, the slowest bot would look strongest.
-  { key: "avg_move_ms", label: "Avg move", higherIsBetter: false },
+  { key: "avg_move_ms", label: "Rapidez", higherIsBetter: false },
 ];
 
 function renderRadar(stats, useElo) {
@@ -175,7 +175,7 @@ function renderRadar(stats, useElo) {
   $("sb-radar-sub").textContent = `${stats.length} shown · ${axes.map((a) => a.label).join(" · ")}`;
 
   if (!stats.length) {
-    box.appendChild(el("p", "muted", "No players selected."));
+    box.appendChild(el("p", "muted", "No hay jugadores seleccionados."));
     return;
   }
 
@@ -229,7 +229,7 @@ function renderRadar(stats, useElo) {
   svg.setAttribute("viewBox", `0 0 ${SIZE} ${SIZE}`);
   svg.setAttribute("class", "radar");
   svg.setAttribute("role", "img");
-  svg.setAttribute("aria-label", `Comparison of ${stats.length} players`);
+  svg.setAttribute("aria-label", `Comparativa de ${stats.length} jugadores`);
   svg.innerHTML = parts.join("");
   const wrap = el("div", "radar-wrap");
   wrap.appendChild(svg);
@@ -245,13 +245,13 @@ function renderRadar(stats, useElo) {
   wrap.appendChild(legend);
   box.appendChild(wrap);
   box.appendChild(el("p", "muted small",
-    "Each axis is scaled across the players shown. Avg move is inverted: faster " +
-    "thinking reaches further out."));
+    "Cada eje se escala entre los jugadores mostrados. La rapidez está invertida: " +
+    "cuanto menos tarda en pensar, más hacia fuera."));
 }
 
 /* Right-wing classification column. */
 function renderStandings(standings, useElo) {
-  $("sb-class-title").textContent = useElo ? "Classification · Elo" : "Classification · points";
+  $("sb-class-title").textContent = useElo ? "Clasificación · Elo" : "Clasificación · puntos";
   const ol = $("sb-standings");
   ol.innerHTML = "";
   for (const row of standings) {
@@ -278,7 +278,7 @@ function renderStructure(data, mode) {
   if (mode !== "championship") {
     const t = data.totals || {};
     box.appendChild(el("p", null,
-      `${t.players ?? "?"} players · ${t.matches ?? "?"} matches · ${t.games ?? "?"} games.`));
+      `${t.players ?? "?"} jugadores · ${t.matches ?? "?"} enfrentamientos · ${t.games ?? "?"} partidas.`));
     return;
   }
 
@@ -289,7 +289,7 @@ function renderStructure(data, mode) {
     card.appendChild(el("h4", null, g.name));
     const table = el("table", "sb-mini");
     table.innerHTML =
-      "<thead><tr><th>#</th><th>Player</th><th>Pts</th><th>W</th><th>D</th><th>L</th></tr></thead>";
+      "<thead><tr><th>#</th><th>Jugador</th><th>Pts</th><th>G</th><th>E</th><th>P</th></tr></thead>";
     const tb = el("tbody");
     for (const r of g.table) {
       const advanced = (g.advance || []).includes(r.player);
@@ -303,12 +303,12 @@ function renderStructure(data, mode) {
     card.appendChild(table);
     groupsWrap.appendChild(card);
   }
-  box.appendChild(el("h4", "sb-phase-title", "Group phase"));
+  box.appendChild(el("h4", "sb-phase-title", "Fase de grupos"));
   box.appendChild(groupsWrap);
 
   // Knockout bracket
   const bracket = struct.bracket || {};
-  box.appendChild(el("h4", "sb-phase-title", "Knockout bracket"));
+  box.appendChild(el("h4", "sb-phase-title", "Eliminatorias"));
   const brWrap = el("div", "sb-bracket");
   for (const round of bracket.rounds || []) {
     const col = el("div", "sb-round");
@@ -324,7 +324,7 @@ function renderStructure(data, mode) {
   box.appendChild(brWrap);
   if (bracket.champion) {
     const champ = el("div", "sb-champion");
-    champ.innerHTML = `🏆 Champion: ${playerHtml(bracket.champion)}`;
+    champ.innerHTML = `🏆 Campeón: ${playerHtml(bracket.champion)}`;
     box.appendChild(champ);
   }
 }
@@ -348,7 +348,7 @@ function renderMatches(matches) {
   const box = $("sb-matches");
   box.innerHTML = "";
   if (!matches.length) {
-    box.appendChild(el("p", "muted", "No matches between the selected players."));
+    box.appendChild(el("p", "muted", "No hay enfrentamientos entre los jugadores seleccionados."));
     return;
   }
   for (const m of matches) {
@@ -356,29 +356,29 @@ function renderMatches(matches) {
     const summary = el("summary");
     const decided = m.winner
       ? `<span class="sb-match-win">${playerHtml(m.winner)}</span>`
-      : `<span class="muted">tie</span>`;
+      : `<span class="muted">igualados</span>`;
     summary.innerHTML =
       `<span class="sb-match-pair">${playerHtml(m.player_a)}` +
       `<span class="muted"> vs </span>${playerHtml(m.player_b)}</span>` +
-      `<span class="sb-match-score">${m.a_wins}–${m.b_wins}${m.draws ? ` (${m.draws} d)` : ""}</span>` +
+      `<span class="sb-match-score">${m.a_wins}–${m.b_wins}${m.draws ? ` (${m.draws} e)` : ""}</span>` +
       `<span class="sb-match-meta">${decided}` +
       `${m.forfeits ? ` · <span class="warn">${m.forfeits} ff</span>` : ""}</span>`;
     d.appendChild(summary);
 
     const body = el("div", "sb-match-body");
     const tiles = el("div", "sb-tiles");
-    tiles.appendChild(statTile("Phase", m.phase || "—"));
-    tiles.appendChild(statTile("Games", String(m.games)));
-    tiles.appendChild(statTile("Score", `${m.a_wins}–${m.b_wins}`));
-    tiles.appendChild(statTile("Draws", String(m.draws ?? 0)));
-    tiles.appendChild(statTile("Forfeits", String(m.forfeits ?? 0)));
+    tiles.appendChild(statTile("Fase", m.phase || "—"));
+    tiles.appendChild(statTile("Partidas", String(m.games)));
+    tiles.appendChild(statTile("Marcador", `${m.a_wins}–${m.b_wins}`));
+    tiles.appendChild(statTile("Empates", String(m.draws ?? 0)));
+    tiles.appendChild(statTile("Descalificaciones", String(m.forfeits ?? 0)));
     body.appendChild(tiles);
 
     // Per-side timing, which the flat table had no room for.
     const table = el("table", "sb-mini");
     table.innerHTML =
-      "<thead><tr><th>Player</th><th>Wins</th><th>Avg move</th>" +
-      "<th>Std</th><th>Max move</th></tr></thead>";
+      "<thead><tr><th>Jugador</th><th>Victorias</th><th>Jugada media</th>" +
+      "<th>Desv.</th><th>Más lenta</th></tr></thead>";
     const tb = el("tbody");
     for (const side of ["a", "b"]) {
       const name = m[`player_${side}`];
@@ -392,7 +392,7 @@ function renderMatches(matches) {
       tb.appendChild(tr);
     }
     table.appendChild(tb);
-    body.appendChild(el("h5", "sb-h2h", "Per player"));
+    body.appendChild(el("h5", "sb-h2h", "Por jugador"));
     body.appendChild(table);
     d.appendChild(body);
     box.appendChild(d);
@@ -401,7 +401,7 @@ function renderMatches(matches) {
 
 /* Player stats — per-player card with head-to-head breakdown. */
 function renderPlayerStats(stats, useElo) {
-  $("sb-players-sub").textContent = `${stats.length} players`;
+  $("sb-players-sub").textContent = `${stats.length} jugadores`;
   const box = $("sb-playerstats");
   box.innerHTML = "";
   for (const s of stats) {
@@ -415,13 +415,13 @@ function renderPlayerStats(stats, useElo) {
 
     const body = el("div", "sb-player-body");
     const tiles = el("div", "sb-tiles");
-    tiles.appendChild(statTile("Win rate", `${(s.win_rate * 100).toFixed(0)}%`));
-    tiles.appendChild(statTile("Wins / Draws / Losses", `${s.wins} / ${s.draws ?? 0} / ${s.losses}`));
-    tiles.appendChild(statTile("Forfeits", String(s.forfeits)));
-    tiles.appendChild(statTile("Avg move", fmtMs(s.avg_move_ms)));
-    tiles.appendChild(statTile("Std move", fmtMs(s.std_move_ms)));
-    tiles.appendChild(statTile("Max move", fmtMs(s.max_move_ms)));
-    tiles.appendChild(statTile("Moves made", String(s.moves_made)));
+    tiles.appendChild(statTile("% victorias", `${(s.win_rate * 100).toFixed(0)}%`));
+    tiles.appendChild(statTile("Victorias / Empates / Derrotas", `${s.wins} / ${s.draws ?? 0} / ${s.losses}`));
+    tiles.appendChild(statTile("Descalificaciones", String(s.forfeits)));
+    tiles.appendChild(statTile("Jugada media", fmtMs(s.avg_move_ms)));
+    tiles.appendChild(statTile("Desviación", fmtMs(s.std_move_ms)));
+    tiles.appendChild(statTile("Jugada más lenta", fmtMs(s.max_move_ms)));
+    tiles.appendChild(statTile("Jugadas hechas", String(s.moves_made)));
     if (useElo) tiles.appendChild(statTile("Elo", String(Math.round(s.elo))));
     body.appendChild(tiles);
 
@@ -429,7 +429,7 @@ function renderPlayerStats(stats, useElo) {
     const opponents = (s.opponents || []).filter((o) => SB.selected.has(o.opponent));
     if (opponents.length) {
       const oppTable = el("table", "sb-mini");
-      oppTable.innerHTML = "<thead><tr><th>Opponent</th><th>W</th><th>D</th><th>L</th></tr></thead>";
+      oppTable.innerHTML = "<thead><tr><th>Rival</th><th>G</th><th>E</th><th>P</th></tr></thead>";
       const tb = el("tbody");
       for (const o of opponents) {
         const tr = el("tr");
@@ -437,7 +437,7 @@ function renderPlayerStats(stats, useElo) {
         tb.appendChild(tr);
       }
       oppTable.appendChild(tb);
-      body.appendChild(el("h5", "sb-h2h", "Head-to-head"));
+      body.appendChild(el("h5", "sb-h2h", "Cara a cara"));
       body.appendChild(oppTable);
     }
     d.appendChild(body);
@@ -451,14 +451,14 @@ function renderTotals(t) {
   const box = $("sb-totals");
   box.innerHTML = "";
   const tiles = el("div", "sb-tiles");
-  tiles.appendChild(statTile("Players", String(t.players ?? "—")));
-  tiles.appendChild(statTile("Matches", String(t.matches ?? "—")));
-  tiles.appendChild(statTile("Games", String(t.games ?? "—")));
-  tiles.appendChild(statTile("Total moves", String(t.total_moves ?? "—")));
-  tiles.appendChild(statTile("Avg game length", `${t.avg_game_moves ?? "—"} moves`));
-  tiles.appendChild(statTile("Longest game", `${t.longest_game_moves ?? "—"} moves`));
-  tiles.appendChild(statTile("Forfeits", String(t.forfeits ?? "—")));
-  tiles.appendChild(statTile("Total think time",
+  tiles.appendChild(statTile("Jugadores", String(t.players ?? "—")));
+  tiles.appendChild(statTile("Enfrentamientos", String(t.matches ?? "—")));
+  tiles.appendChild(statTile("Partidas", String(t.games ?? "—")));
+  tiles.appendChild(statTile("Jugadas totales", String(t.total_moves ?? "—")));
+  tiles.appendChild(statTile("Duración media", `${t.avg_game_moves ?? "—"} jugadas`));
+  tiles.appendChild(statTile("Partida más larga", `${t.longest_game_moves ?? "—"} jugadas`));
+  tiles.appendChild(statTile("Descalificaciones", String(t.forfeits ?? "—")));
+  tiles.appendChild(statTile("Tiempo pensando",
     t.total_move_time_ms != null ? `${(t.total_move_time_ms / 1000).toFixed(2)} s` : "—"));
   box.appendChild(tiles);
 }

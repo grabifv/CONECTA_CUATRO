@@ -1,27 +1,60 @@
 <section id="screen-menu" class="screen">
-  <div class="hero">
-    <h1>Conecta Cuatro <span class="accent">Arena</span></h1>
-    <p class="tagline">
-      Line up four pieces to win. Play a friend, challenge an AI,
-      or watch two bots fight — all running real Python in your browser.
-    </p>
-    <div class="menu-grid">
-      <button class="tile" data-nav="game">
-        <span class="tile-emoji">▶️</span><span>Play</span>
-        <small>Human vs Human / AI, any board size</small>
-      </button>
-      <button class="tile" data-nav="scoreboard">
-        <span class="tile-emoji">🏆</span><span>Scoreboard</span>
-        <small>Latest CI tournament standings</small>
-      </button>
-      <button class="tile" data-nav="tournament">
-        <span class="tile-emoji">🎪</span><span>Tournament</span>
-        <small>Run your own bracket: humans and AIs</small>
-      </button>
-      <button class="tile" data-nav="about">
-        <span class="tile-emoji">💡</span><span>About</span>
-        <small>How it works &amp; how to play well</small>
-      </button>
+  <div class="home">
+    <div class="home-copy">
+      <span class="eyebrow">Juego de mesa · Python en tu navegador</span>
+      <h1>Cuatro en línea<br />y <span class="hl">a ganar</span>.</h1>
+      <p class="tagline">
+        Suelta tus fichas, bloquea las de tu rival y sé el primero en juntar cuatro.
+        Juega con un amigo en la misma pantalla, reta a un bot o ponlos a pelear
+        entre ellos.
+      </p>
+      <div class="home-cta">
+        <button class="btn primary big" data-nav="game">▶ Jugar ahora</button>
+        <button class="btn big" data-nav="tournament">🏆 Montar un torneo</button>
+      </div>
+      <ul class="home-facts">
+        <li><b>4</b> bots, de fácil a difícil</li>
+        <li><b>2</b> jugadores, misma pantalla</li>
+        <li><b>0</b> instalaciones</li>
+      </ul>
     </div>
+
+    <!-- Decorative board: pieces drop in one after another, then loop. -->
+    <div class="home-art" aria-hidden="true">
+      <div class="demo-board">
+        <i style="--c:3;--r:5;--d:0"></i>
+        <i class="y" style="--c:2;--r:5;--d:1"></i>
+        <i style="--c:4;--r:5;--d:2"></i>
+        <i class="y" style="--c:3;--r:4;--d:3"></i>
+        <i style="--c:5;--r:5;--d:4"></i>
+        <i class="y" style="--c:6;--r:5;--d:5"></i>
+        <i style="--c:2;--r:4;--d:6"></i>
+        <i class="y" style="--c:1;--r:5;--d:7"></i>
+        <i style="--c:3;--r:3;--d:8"></i>
+      </div>
+    </div>
+  </div>
+
+  <div class="modes">
+    <button class="mode" data-nav="game">
+      <span class="mode-ico">👥</span>
+      <span class="mode-title">Contra un amigo</span>
+      <small>Elige «Persona» en los dos asientos y turnaos con el ratón.</small>
+    </button>
+    <button class="mode" data-nav="game">
+      <span class="mode-ico">🤖</span>
+      <span class="mode-title">Contra un bot</span>
+      <small>Cuatro niveles: random, easy, medium y hard.</small>
+    </button>
+    <button class="mode" data-nav="scoreboard">
+      <span class="mode-ico">📊</span>
+      <span class="mode-title">Clasificación</span>
+      <small>Así quedó el último torneo automático entre bots.</small>
+    </button>
+    <button class="mode" data-nav="about">
+      <span class="mode-ico">💡</span>
+      <span class="mode-title">Cómo se juega</span>
+      <small>Reglas, trucos y cómo crear tu propio bot.</small>
+    </button>
   </div>
 </section>

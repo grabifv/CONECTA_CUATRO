@@ -149,7 +149,7 @@ eval(
   scripts.map((rel) => fs.readFileSync(path.join(WEB, rel), "utf8")).join("\n;\n") +
   // `const` at the top of an eval is scoped to that eval, so hand out what the
   // assertions below need to poke at.
-  "\n;Object.assign(app, { T, G, tHumanMove, newGame, humanMove });"
+  "\n;Object.assign(app, { T, G, tHumanMove, newGame, humanMove, showScreen });"
 );
 
 const $ = (id) => document.getElementById(id);
@@ -239,10 +239,25 @@ const piecesIn = (node) =>
   app.G.seats = ["Human", "Human"];
   app.newGame({ rows: 5, columns: 6 });
   check("board size follows the setup", cellsIn($("board")) === 30);
+  check("player 1's card is lit first", $("turn-0").classList.contains("active") &&
+        !$("turn-1").classList.contains("active"));
+  app.humanMove(2);
+  const dropped = $("board").querySelectorAll("drop");
+  check("the new piece falls into place", dropped.length === 1 && dropped[0].classList.contains("p1"),
+        `drop cells=${dropped.length}`);
+  check("the turn passes to player 2", $("turn-1").classList.contains("active"));
+  app.newGame({ rows: 5, columns: 6 });
   for (const col of [0, 1, 0, 1, 0, 1, 0]) app.humanMove(col);
   check("game reaches a winner", app.G.gameOver === true && app.G.winnerSeat === 0);
   check("the winning line is highlighted", $("board").querySelectorAll("win").length === 4);
-  check("the status announces it", /wins/.test($("status").innerHTML));
+  check("the status announces it", /Gana/.test($("status").innerHTML));
+  check("the winner's card is crowned", $("turn-0").classList.contains("winner"));
+
+  console.log("\nnavigation");
+  app.showScreen("tournament");
+  check("switching screens shows the target", !$("screen-tournament").classList.contains("hidden"));
+  const tabs = document._html.match(/class="link"/g) || [];
+  check("the header has a tab per screen", tabs.length >= 5, `tabs=${tabs.length}`);
 
   console.log("\nplay screen — X-ray and a full board");
   app.newGame({ rows: 4, columns: 4 });
@@ -253,7 +268,7 @@ const piecesIn = (node) =>
   for (const col of [3, 3, 0, 2, 3, 3, 1, 1, 1, 2, 0, 2, 0, 1, 2, 0]) app.humanMove(col);
   check("a full board is a draw", app.G.gameOver === true && app.G.winnerSeat === null,
         `over=${app.G.gameOver} winner=${app.G.winnerSeat}`);
-  check("the status says draw", /Draw/.test($("status").innerHTML));
+  check("the status says draw", /Empate/.test($("status").innerHTML));
 
   console.log(`\n${failures ? "FAILED: " + failures + " check(s)" : "all checks passed"}`);
   process.exit(failures ? 1 : 0);

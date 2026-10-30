@@ -1,42 +1,43 @@
 <section id="screen-tournament" class="screen hidden">
-  <h1>🎪 Tournament</h1>
+  <h1 class="page-title">🏆 Torneo</h1>
+  <p class="page-sub">Monta un cuadro de eliminatorias con bots y personas. Cada cruce es una partida.</p>
 
   <!-- Setup -->
   <div class="panel tsetup" id="t-setup">
     <div class="tsetup-grid">
-      <label>Bracket size
+      <label>Participantes
         <select id="t-size">
-          <option value="4">4 players</option>
-          <option value="8" selected>8 players</option>
-          <option value="16">16 players</option>
+          <option value="4">4 jugadores</option>
+          <option value="8" selected>8 jugadores</option>
+          <option value="16">16 jugadores</option>
         </select>
       </label>
-      <label>Random seed
+      <label>Semilla
         <input id="t-seed" type="number" min="0" step="1" value="1" />
       </label>
-      <label>Rows <span class="muted small">(4–10)</span>
+      <label>Filas <span class="muted small">(4–10)</span>
         <input id="t-rows" type="number" min="4" max="10" value="6" />
       </label>
-      <label>Columns <span class="muted small">(4–10)</span>
+      <label>Columnas <span class="muted small">(4–10)</span>
         <input id="t-cols" type="number" min="4" max="10" value="7" />
       </label>
     </div>
     <div class="tslots" id="t-slots"></div>
     <div class="btn-row">
-      <button id="t-start" class="btn primary">Start tournament</button>
-      <button id="t-shuffle" class="btn" title="Randomise the entrants">🎲 Randomise</button>
-      <button id="t-reset" class="btn hidden" title="Configure a new bracket">↺ New bracket</button>
+      <button id="t-start" class="btn primary">▶ Empezar torneo</button>
+      <button id="t-shuffle" class="btn" title="Elige participantes al azar">🎲 Al azar</button>
+      <button id="t-reset" class="btn hidden" title="Configura un cuadro nuevo">↺ Nuevo cuadro</button>
     </div>
   </div>
 
   <!-- Bracket -->
   <div class="panel tbracket-wrap hidden" id="t-bracket-wrap">
     <div class="tbracket-head">
-      <h3>Bracket</h3>
+      <h3>Cuadro</h3>
       <span class="muted small" id="t-progress"></span>
     </div>
     <div class="sb-bracket" id="t-bracket"></div>
-    <p class="muted small">Click any finished match to replay it. A drawn match goes to the player who moved second.</p>
+    <p class="muted small">Pulsa un cruce terminado para repetirlo. Si una partida acaba en empate, pasa quien jugó segundo.</p>
   </div>
 
   <!-- Match view: live human match, or a replay of a finished one -->
@@ -56,7 +57,7 @@
       <span id="t-tl-label" class="tl-label"></span>
     </div>
     <div class="btn-row">
-      <button id="t-close-view" class="btn hidden">Back to bracket</button>
+      <button id="t-close-view" class="btn hidden">← Volver al cuadro</button>
     </div>
   </div>
 

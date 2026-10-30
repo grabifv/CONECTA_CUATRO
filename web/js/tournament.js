@@ -33,7 +33,7 @@ const T = {
   timer: null,
 };
 
-const ROUND_NAME = { 1: "Final", 2: "Semifinals", 4: "Quarterfinals", 8: "Round of 16" };
+const ROUND_NAME = { 1: "Final", 2: "Semifinales", 4: "Cuartos", 8: "Octavos" };
 
 /* ---------------- setup ---------------- */
 
@@ -67,7 +67,7 @@ function tBuildSetup() {
     const slot = {
       id: `slot${i}`,
       kind: prev?.kind ?? (kinds[i % Math.max(1, kinds.length)] || HUMAN_KIND),
-      label: prev?.label ?? `Player ${i + 1}`,
+      label: prev?.label ?? `Jugador ${i + 1}`,
     };
     T.slots.push(slot);
 
@@ -76,7 +76,7 @@ function tBuildSetup() {
 
     const sel = el("select", "tslot-kind");
     for (const opt of [HUMAN_KIND, ...kinds]) {
-      const o = el("option", null, opt === HUMAN_KIND ? `${HUMAN_ICON} Human` : playerText(opt));
+      const o = el("option", null, opt === HUMAN_KIND ? `${HUMAN_ICON} Persona` : playerText(opt));
       o.value = opt;
       sel.appendChild(o);
     }
@@ -85,13 +85,13 @@ function tBuildSetup() {
     const nameInput = el("input", "tslot-name");
     nameInput.type = "text";
     nameInput.value = slot.label;
-    nameInput.placeholder = "Name";
+    nameInput.placeholder = "Nombre";
     const syncName = () => {
       const human = sel.value === HUMAN_KIND;
       nameInput.classList.toggle("hidden", !human);
     };
     sel.onchange = () => { slot.kind = sel.value; syncName(); };
-    nameInput.oninput = () => { slot.label = nameInput.value.trim() || `Player ${i + 1}`; };
+    nameInput.oninput = () => { slot.label = nameInput.value.trim() || `Jugador ${i + 1}`; };
     syncName();
 
     row.appendChild(sel);
@@ -120,7 +120,7 @@ function tStart() {
   if (problem) { toast(problem); return; }
 
   const seed = parseInt($("t-seed").value);
-  if (!Number.isFinite(seed) || seed < 0) { toast("The seed must be a whole number, 0 or more."); return; }
+  if (!Number.isFinite(seed) || seed < 0) { toast("La semilla tiene que ser un número entero, 0 o mayor."); return; }
 
   T.dims = { rows, columns };
   T.start = window.C4.newBoard(rows, columns);
@@ -250,7 +250,7 @@ function tOpenLiveMatch(at) {
   $("t-timeline").classList.add("hidden");
   $("t-match-title").innerHTML =
     `${tSlotHtml(match.a)} <span class="muted">vs</span> ${tSlotHtml(match.b)}`;
-  $("t-match-sub").textContent = `${tRoundName(at.r)} · ${tDimsText()} board`;
+  $("t-match-sub").textContent = `${tRoundName(at.r)} · tablero ${tDimsText()}`;
   $("t-match").scrollIntoView({ behavior: "smooth", block: "nearest" });
   tRenderLive();
   tMaybeBotTurn();
@@ -280,15 +280,15 @@ function tRenderLive() {
   const status = $("t-status");
   if (g.over) {
     status.innerHTML = g.winnerSeat == null
-      ? `🤝 Draw — ${tSlotHtml(tSeatSlot(1))} moved second and goes through.`
-      : `🏆 ${tSlotHtml(tSeatSlot(g.winnerSeat))} connects four and wins.`;
+      ? `🤝 Empate: ${tSlotHtml(tSeatSlot(1))} jugó segundo y pasa de ronda.`
+      : `🏆 ${tSlotHtml(tSeatSlot(g.winnerSeat))} junta cuatro y gana.`;
   } else {
     const chip = g.turn === 0 ? "chip-a" : "chip-b";
     status.innerHTML =
-      `<span class="chip ${chip}">${g.turn === 0 ? "first" : "second"}</span> ` +
+      `<span class="chip ${chip}">${g.turn === 0 ? "🔴 rojo" : "🟡 amarillo"}</span> ` +
       (mySlot.kind === HUMAN_KIND
-        ? `${tSlotHtml(mySlot)} — your turn.`
-        : `${tSlotHtml(mySlot)} is thinking…`);
+        ? `${tSlotHtml(mySlot)}: te toca.`
+        : `${tSlotHtml(mySlot)} está pensando…`);
   }
 }
 
@@ -314,7 +314,7 @@ function tHumanMove(move) {
   const g = T.game;
   if (g.over || g.cursor !== g.history.length - 1) return;
   if (!window.C4.legalMoves(tCurrent()).includes(move)) {
-    toast("Illegal move — ignored.");
+    toast("Jugada no válida: se ignora.");
     return;
   }
   tApply(move);
@@ -333,7 +333,7 @@ function tMaybeBotTurn() {
       tApply(res.move);
     } catch (err) {
       // A misbehaving bot forfeits rather than wedging the bracket.
-      toast(`${slot.display} failed: ${err}`);
+      toast(`${slot.display} ha fallado: ${err}`);
       g.over = true;
       g.winnerSeat = 1 - g.turn;
     }
@@ -373,7 +373,7 @@ function tViewMatch(r, m) {
     `${tSlotHtml(match.a)} <span class="muted">vs</span> ${tSlotHtml(match.b)}`;
   const how = match.result && match.result !== "normal" ? ` · ${match.result}` : "";
   $("t-match-sub").textContent =
-    `${tRoundName(r)} · ${match.moves.length} moves${how}${match.detail ? " · " + match.detail : ""}`;
+    `${tRoundName(r)} · ${match.moves.length} jugadas${how}${match.detail ? " · " + match.detail : ""}`;
 
   const slider = $("t-tl-slider");
   slider.min = 0;
@@ -390,13 +390,13 @@ function tRenderReplay() {
   const atEnd = g.cursor === g.history.length - 1;
   paintBoard($("t-board"), g.history[g.cursor], { onPick: null, line: atEnd ? g.line : null });
   $("t-tl-slider").value = g.cursor;
-  $("t-tl-label").textContent = `move ${g.cursor} / ${g.history.length - 1}`;
+  $("t-tl-label").textContent = `jugada ${g.cursor} / ${g.history.length - 1}`;
   const ending = match.draw
-    ? `🤝 Draw — ${tSlotHtml(match.winner)} moved second and went through.`
-    : `🏆 ${tSlotHtml(match.winner)} won this match.`;
+    ? `🤝 Empate: ${tSlotHtml(match.winner)} jugó segundo y pasó de ronda.`
+    : `🏆 ${tSlotHtml(match.winner)} ganó este cruce.`;
   $("t-status").innerHTML = atEnd
     ? ending
-    : `Showing move ${g.cursor}. ${tSlotHtml(g.cursor % 2 === 0 ? match.a : match.b)} to play.`;
+    : `Jugada ${g.cursor}. Le toca a ${tSlotHtml(g.cursor % 2 === 0 ? match.a : match.b)}.`;
 }
 
 function tCloseView() {
@@ -408,7 +408,7 @@ function tCloseView() {
 /* ---------------- the tree ---------------- */
 
 function tRoundName(r) {
-  return ROUND_NAME[T.rounds[r].length] || `Round ${r + 1}`;
+  return ROUND_NAME[T.rounds[r].length] || `Ronda ${r + 1}`;
 }
 
 function tRenderBracket() {
@@ -416,7 +416,7 @@ function tRenderBracket() {
   wrap.innerHTML = "";
   const total = T.rounds.reduce((n, rd) => n + rd.length, 0);
   const done = T.rounds.reduce((n, rd) => n + rd.filter((x) => x.done).length, 0);
-  $("t-progress").textContent = `${done} / ${total} matches played`;
+  $("t-progress").textContent = `${done} / ${total} cruces jugados`;
 
   T.rounds.forEach((round, r) => {
     const col = el("div", "sb-round");
@@ -430,7 +430,7 @@ function tRenderBracket() {
       card.appendChild(tTieSide(match, match.b));
       if (match.done) {
         card.classList.add("t-done");
-        card.title = "Click to replay this match";
+        card.title = "Pulsa para repetir este cruce";
         card.onclick = () => tViewMatch(r, m);
       }
       col.appendChild(card);
@@ -446,7 +446,7 @@ function tTieSide(match, slot) {
   name.innerHTML = slot ? tSlotHtml(slot) : `<span class="muted">—</span>`;
   row.appendChild(name);
   if (match.done) {
-    const mark = match.draw ? (won ? "D ✓" : "D") : (won ? "W" : "L");
+    const mark = match.draw ? (won ? "E ✓" : "E") : (won ? "G" : "P");
     row.appendChild(el("span", "sb-tie-score", mark));
   }
   return row;
@@ -475,7 +475,7 @@ function tFinish() {
     }</div>` +
     `<div class="tchampion-card">` +
     `<div class="tchampion-crown">🏆</div>` +
-    `<h2>${tSlotHtml(champion)} wins the tournament!</h2>` +
+    `<h2>¡${tSlotHtml(champion)} gana el torneo!</h2>` +
     `<div class="podium">` +
     `<div class="podium-step silver"><div class="podium-medal">🥈</div>` +
     `<div class="podium-name">${tSlotHtml(runnerUp)}</div><div class="podium-block">2</div></div>` +
@@ -485,8 +485,8 @@ function tFinish() {
     `<div class="podium-name">${semis.map(tSlotHtml).join('<span class="muted"> · </span>') || "—"}</div>` +
     `<div class="podium-block">3</div></div>` +
     `</div>` +
-    `<p class="muted small">Seed ${T.seed} · ${tDimsText()} board · ` +
-    `${T.rounds.reduce((n, rd) => n + rd.length, 0)} matches. Click any match above to replay it.</p>` +
+    `<p class="muted small">Semilla ${T.seed} · tablero ${tDimsText()} · ` +
+    `${T.rounds.reduce((n, rd) => n + rd.length, 0)} cruces. Pulsa cualquier cruce de arriba para repetirlo.</p>` +
     `</div>`;
   box.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
@@ -497,20 +497,20 @@ function setupTournament() {
   // The slot list is NOT built here: it needs the engine's player list, so
   // main() calls tBuildSetup() once boot finishes. Wiring must not depend on
   // anything that can fail, or a dead button is the result.
-  $("t-size").onchange = guard("Bracket size", tBuildSetup);
-  $("t-start").onclick = guard("Start tournament", tStart);
-  $("t-reset").onclick = guard("New bracket", tReset);
-  $("t-shuffle").onclick = guard("Randomise", tRandomise);
-  $("t-close-view").onclick = guard("Back to bracket", tCloseView);
+  $("t-size").onchange = guard("Participantes", tBuildSetup);
+  $("t-start").onclick = guard("Empezar torneo", tStart);
+  $("t-reset").onclick = guard("Nuevo cuadro", tReset);
+  $("t-shuffle").onclick = guard("Al azar", tRandomise);
+  $("t-close-view").onclick = guard("Volver al cuadro", tCloseView);
   const step = (d) => () => {
     if (!T.view) return;
     T.game.cursor = Math.max(0, Math.min(T.game.history.length - 1, T.game.cursor + d));
     tRenderReplay();
   };
-  $("t-tl-prev").onclick = guard("Previous move", step(-1));
-  $("t-tl-next").onclick = guard("Next move", step(1));
-  $("t-tl-first").onclick = guard("First move", () => { if (T.view) { T.game.cursor = 0; tRenderReplay(); } });
-  $("t-tl-last").onclick = guard("Last move", () => {
+  $("t-tl-prev").onclick = guard("Jugada anterior", step(-1));
+  $("t-tl-next").onclick = guard("Jugada siguiente", step(1));
+  $("t-tl-first").onclick = guard("Primera jugada", () => { if (T.view) { T.game.cursor = 0; tRenderReplay(); } });
+  $("t-tl-last").onclick = guard("Última jugada", () => {
     if (T.view) { T.game.cursor = T.game.history.length - 1; tRenderReplay(); }
   });
 }

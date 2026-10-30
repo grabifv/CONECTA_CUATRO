@@ -12,35 +12,35 @@ function loadPyodideScript() {
     const s = document.createElement("script");
     s.src = `${PYODIDE_CDN}pyodide.js`;
     s.onload = resolve;
-    s.onerror = () => reject(new Error("Failed to load Pyodide from the CDN"));
+    s.onerror = () => reject(new Error("No se pudo descargar Pyodide del CDN"));
     document.head.appendChild(s);
   });
 }
 
 // Boot Pyodide, unpack py.zip into the virtual FS, import webglue, load players.
 async function bootEngine(onStatus = () => {}) {
-  onStatus("Loading Pyodide…");
+  onStatus("Cargando Pyodide…");
   await loadPyodideScript();
   const pyodide = await loadPyodide({ indexURL: PYODIDE_CDN });
 
-  onStatus("Loading PyYAML…");
+  onStatus("Cargando PyYAML…");
   await pyodide.loadPackage("pyyaml");
 
-  onStatus("Fetching the Python code…");
+  onStatus("Descargando el código Python…");
   const resp = await fetch("py.zip", { cache: "no-cache" });
   if (!resp.ok) {
     throw new Error(
-      "Could not fetch py.zip. Run `python scripts/build_web.py` first."
+      "No se encontró py.zip. Ejecuta primero `python scripts/build_web.py`."
     );
   }
   const buffer = await resp.arrayBuffer();
 
-  onStatus("Mounting the game engine…");
+  onStatus("Montando el motor del juego…");
   pyodide.FS.mkdirTree(MOUNT);
   await pyodide.unpackArchive(buffer, "zip", { extractDir: MOUNT });
   pyodide.runPython(`import sys; sys.path.insert(0, "${MOUNT}")`);
 
-  onStatus("Registering players…");
+  onStatus("Presentando a los bots…");
   const webglue = pyodide.pyimport("webglue");
   // init() loads the manifest and returns the same payload as players_json().
   webglue.init(MOUNT);
@@ -70,7 +70,7 @@ async function bootEngine(onStatus = () => {}) {
       JSON.parse(webglue.play_auto(aId, bId, JSON.stringify(state))),
   };
 
-  onStatus("Ready.");
+  onStatus("¡Listo!");
   return window.C4;
 }
 

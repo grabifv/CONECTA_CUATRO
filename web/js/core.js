@@ -34,7 +34,16 @@ function toast(msg) {
 function showScreen(name) {
   for (const s of document.querySelectorAll(".screen")) s.classList.add("hidden");
   $(`screen-${name}`).classList.remove("hidden");
+  // Mark the tab of the screen on show; the menu's own tiles share data-nav.
+  for (const link of document.querySelectorAll(".nav [data-nav]")) {
+    link.classList.toggle("active", link.dataset.nav === name);
+  }
   if (name === "scoreboard") loadScoreboard();
+}
+
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  $("theme-toggle").textContent = theme === "dark" ? "☀️" : "🌙";
 }
 
 function setupNav() {
@@ -42,14 +51,13 @@ function setupNav() {
     btn.addEventListener("click", () => showScreen(btn.dataset.nav));
   }
   $("theme-toggle").addEventListener("click", () => {
-    const root = document.documentElement;
-    const next = root.dataset.theme === "light" ? "dark" : "light";
-    root.dataset.theme = next;
+    const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+    applyTheme(next);
     try { localStorage.setItem("c4-theme", next); } catch {}
   });
   try {
     const saved = localStorage.getItem("c4-theme");
-    if (saved) document.documentElement.dataset.theme = saved;
+    if (saved) applyTheme(saved);
   } catch {}
 }
 
@@ -105,17 +113,28 @@ const MAX_ROWS = 10;
 const MAX_COLUMNS = 10;
 const DEFAULT_SIZE = [6, 7];
 
+/* The [row, column] where `after` differs from `before`: the piece just played. */
+function newPiece(before, after) {
+  if (!before || !after) return null;
+  for (let r = 0; r < after.length; r++) {
+    for (let c = 0; c < after[r].length; c++) {
+      if (before[r][c] !== after[r][c]) return [r, c];
+    }
+  }
+  return null;
+}
+
 /* Return the reason a rows x columns board is unplayable, or null if it is fine. */
 function boardProblem(rows, columns) {
   if (!Number.isInteger(rows) || !Number.isInteger(columns)) {
-    return "Rows and columns must be whole numbers.";
+    return "Las filas y las columnas tienen que ser números enteros.";
   }
   if (rows < MIN_SIDE || columns < MIN_SIDE) {
-    return `A board needs at least ${MIN_SIDE} rows and ${MIN_SIDE} columns.`;
+    return `El tablero necesita al menos ${MIN_SIDE} filas y ${MIN_SIDE} columnas.`;
   }
-  if (rows > MAX_ROWS) return `Too many rows: ${rows}. The maximum is ${MAX_ROWS}.`;
+  if (rows > MAX_ROWS) return `Demasiadas filas: ${rows}. El máximo es ${MAX_ROWS}.`;
   if (columns > MAX_COLUMNS) {
-    return `Too many columns: ${columns}. The maximum is ${MAX_COLUMNS}.`;
+    return `Demasiadas columnas: ${columns}. El máximo es ${MAX_COLUMNS}.`;
   }
   return null;
 }
@@ -126,8 +145,13 @@ function boardProblem(rows, columns) {
    second copy of it. `onPick` receives a column index; pass null for read-only.
    `line` is a list of [row, column] cells to highlight (the four in a row),
    `targetColumn` a column to outline (a hint), and `scores` one label per
-   column (or null) shown above the board for the X-ray panel. */
-function paintBoard(container, state, { onPick = null, line = null, targetColumn = -1, scores = null } = {}) {
+   column (or null) shown above the board for the X-ray panel.
+   `drop` is the [row, column] of the piece just played, which falls into place,
+   and `ghost` (1 or 2) is the piece to preview where a hovered column would
+   land it. */
+function paintBoard(container, state, {
+  onPick = null, line = null, targetColumn = -1, scores = null, drop = null, ghost = null,
+} = {}) {
   container.innerHTML = "";
   const interactive = typeof onPick === "function";
   container.classList.toggle("locked", !interactive);
@@ -153,6 +177,10 @@ function paintBoard(container, state, { onPick = null, line = null, targetColumn
       if (piece === 2) cell.classList.add("p2");
       if (winning.has(`${r},${c}`)) cell.classList.add("win");
       if (c === targetColumn) cell.classList.add("target");
+      if (drop && drop[0] === r && drop[1] === c) {
+        cell.classList.add("drop");
+        cell.style.setProperty("--fall", String(r));
+      }
       byColumn[c].push(cell);
       grid.appendChild(cell);
     }
@@ -163,10 +191,22 @@ function paintBoard(container, state, { onPick = null, line = null, targetColumn
   if (interactive) {
     for (let c = 0; c < columns; c++) {
       if (state[0][c] !== 0) continue;
+      // The lowest empty cell is where a piece would land: it shows the ghost.
+      let landing = null;
+      for (let r = rows - 1; r >= 0; r--) {
+        if (state[r][c] === 0) { landing = byColumn[c][r]; break; }
+      }
+      const ghostClass = ghost ? `ghost-${ghost}` : null;
       for (const cell of byColumn[c]) {
         cell.classList.add("selectable");
-        cell.addEventListener("mouseenter", () => byColumn[c].forEach((x) => x.classList.add("preview")));
-        cell.addEventListener("mouseleave", () => byColumn[c].forEach((x) => x.classList.remove("preview")));
+        cell.addEventListener("mouseenter", () => {
+          byColumn[c].forEach((x) => x.classList.add("preview"));
+          if (ghostClass && landing) landing.classList.add(ghostClass);
+        });
+        cell.addEventListener("mouseleave", () => {
+          byColumn[c].forEach((x) => x.classList.remove("preview"));
+          if (ghostClass && landing) landing.classList.remove(ghostClass);
+        });
         cell.addEventListener("click", () => onPick(c));
       }
     }

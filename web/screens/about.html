@@ -1,41 +1,51 @@
 <section id="screen-about" class="screen hidden">
   <div class="prose">
-    <h1>About Conecta Cuatro Arena</h1>
-    <p>
-      Connect Four (<em>Conecta Cuatro</em>) is played on a vertical grid, six
-      rows by seven columns by default. Players take turns dropping a piece into
-      a column; it falls to the lowest free cell. <strong>The first to line up
-      four pieces</strong> — horizontally, vertically or diagonally —
-      <strong>wins</strong>. If the grid fills up first, the game is a draw.
-    </p>
-    <h2>One source of truth</h2>
-    <p>
-      The game rules and every AI are written once, in Python. This page
-      loads that exact code through <strong>Pyodide</strong> (Python compiled
-      to WebAssembly) — the rules are never re-implemented in JavaScript. The
-      same code also runs the automated tournament in GitHub Actions.
-    </p>
-    <h2>Playing well (X-ray mode)</h2>
-    <p>
-      The centre column takes part in more lines than any other, so it is the
-      strongest opening. Beyond that, the game is about <strong>threats</strong>:
-      three in a row with a free fourth cell. Two threats at once cannot both
-      be blocked. Turn on <em>X-ray</em> during a game to see every column
-      scored by a 5-ply search, and the column it recommends.
-    </p>
-    <h2>Add your own AI</h2>
-    <p>
-      Anyone can submit a new player by Pull Request. See the
-      <a href="https://conecta-cuatro.readthedocs.io" target="_blank" rel="noopener">documentation</a>
-      and the
-      <a href="https://github.com/grabifv/CONECTA_CUATRO" target="_blank" rel="noopener">repository</a>.
-    </p>
+    <h1 class="page-title">💡 Cómo se juega</h1>
 
-    <h2>Credits</h2>
+    <div class="rules">
+      <div class="rule"><span class="rule-n">1</span>
+        <p>Por turnos, cada jugador <strong>suelta una ficha</strong> en una columna. La ficha
+        cae hasta la casilla libre más baja. Empieza siempre el <span class="pill red">rojo</span>.</p></div>
+      <div class="rule"><span class="rule-n">2</span>
+        <p><strong>Gana quien junte cuatro</strong> fichas seguidas: en horizontal, en vertical
+        o en diagonal.</p></div>
+      <div class="rule"><span class="rule-n">3</span>
+        <p>Si el tablero se llena sin cuatro en línea, la partida es un <strong>empate</strong>.</p></div>
+    </div>
+
+    <h2>Trucos para ganar</h2>
+    <ul>
+      <li><strong>Juega por el centro.</strong> La columna del medio forma parte de más líneas
+        de cuatro que ninguna otra.</li>
+      <li><strong>Busca amenazas dobles.</strong> Tres en línea con la cuarta casilla libre
+        obligan a tu rival a taparla; si tienes dos a la vez, solo puede tapar una.</li>
+      <li><strong>Cuidado con la casilla de debajo.</strong> Si tu rival amenaza una casilla,
+        no juegues justo debajo: le dejarías la ficha a su alcance.</li>
+      <li>Activa los <strong>Rayos X</strong> mientras juegas: puntúan cada columna con una
+        búsqueda de 5 jugadas y marcan la mejor.</li>
+    </ul>
+
+    <h2>Los bots</h2>
+    <p>🎲 <strong>random</strong> juega al azar · 🌱 <strong>easy</strong> gana si puede y tapa
+      si debe · 🧠 <strong>medium</strong> piensa 4 jugadas por delante · ⚔️ <strong>hard</strong>
+      piensa 5 jugadas y cuenta las líneas abiertas. Ninguno es perfecto.</p>
+
+    <h2>Python en el navegador</h2>
+    <p>Las reglas y los bots están escritos una sola vez, en Python. Esta página carga ese
+      mismo código con <strong>Pyodide</strong> (Python compilado a WebAssembly), así que no
+      hay servidor: todo se ejecuta en tu dispositivo.</p>
+
+    <h2>Crea tu propio bot</h2>
+    <p>Un bot es una clase de Python con un método que recibe el tablero y devuelve una
+      columna. Tienes el paso a paso en el
+      <a href="https://github.com/grabifv/CONECTA_CUATRO#-crea-tu-propio-bot" target="_blank" rel="noopener">README</a>
+      y en la
+      <a href="https://conecta-cuatro.readthedocs.io" target="_blank" rel="noopener">documentación</a>.</p>
+
     <p class="author">
-      Conecta Cuatro Arena by <strong>grabifv</strong> —
-      <a href="https://github.com/grabifv" target="_blank" rel="noopener">github.com/grabifv</a>.
-      MIT license.
+      Hecho por <strong>grabifv</strong> ·
+      <a href="https://github.com/grabifv" target="_blank" rel="noopener">github.com/grabifv</a> ·
+      licencia MIT
     </p>
   </div>
 </section>

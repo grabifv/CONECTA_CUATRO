@@ -20,7 +20,7 @@ function makeNode(tag = "div") {
     _text: "",
     _rawHtml: null,
     _classes: new Set(),
-    style: {},
+    style: { setProperty(k, v) { this[k] = String(v); } },
     dataset: {},
     value: "",
     title: "",

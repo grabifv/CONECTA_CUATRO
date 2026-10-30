@@ -1,6 +1,6 @@
 <section id="screen-scoreboard" class="screen hidden">
-  <h1>🏆 <span id="sb-title">Tournament</span></h1>
-  <p class="muted" id="sb-meta">Loading latest tournament results…</p>
+  <h1 class="page-title">📊 <span id="sb-title">Clasificación</span></h1>
+  <p class="muted" id="sb-meta">Cargando los resultados del último torneo…</p>
 
   <div id="sb-empty" class="sb-empty hidden"></div>
 
@@ -8,14 +8,14 @@
   <div class="sb-filterbar" id="sb-filterbar">
     <details class="sb-filter" id="sb-filter">
       <summary class="btn">
-        <span>Players</span>
+        <span>Jugadores</span>
         <span class="sb-filter-count" id="sb-filter-count"></span>
         <span class="sb-filter-caret">▾</span>
       </summary>
       <div class="sb-filter-panel">
         <div class="sb-filter-actions">
-          <button class="btn small" id="sb-filter-all">Select all</button>
-          <button class="btn small" id="sb-filter-none">Deselect all</button>
+          <button class="btn small" id="sb-filter-all">Todos</button>
+          <button class="btn small" id="sb-filter-none">Ninguno</button>
         </div>
         <div class="sb-filter-list" id="sb-filter-list"></div>
       </div>
@@ -28,7 +28,7 @@
     <div class="sb-center">
       <details class="sb-block" id="sb-block-radar" open>
         <summary>
-          <span class="sb-block-title">Player comparison</span>
+          <span class="sb-block-title">Comparativa</span>
           <span class="sb-sub" id="sb-radar-sub"></span>
         </summary>
         <div class="sb-block-body" id="sb-radar"></div>
@@ -36,7 +36,7 @@
 
       <details class="sb-block" id="sb-block-structure" open>
         <summary>
-          <span class="sb-block-title">Tournament</span>
+          <span class="sb-block-title">Torneo</span>
           <span class="sb-sub" id="sb-structure-sub"></span>
         </summary>
         <div class="sb-block-body" id="sb-structure"></div>
@@ -44,7 +44,7 @@
 
       <details class="sb-block" open>
         <summary>
-          <span class="sb-block-title">Match summary</span>
+          <span class="sb-block-title">Enfrentamientos</span>
           <span class="sb-sub" id="sb-matches-sub"></span>
         </summary>
         <div class="sb-block-body" id="sb-matches"></div>
@@ -52,7 +52,7 @@
 
       <details class="sb-block">
         <summary>
-          <span class="sb-block-title">Player stats</span>
+          <span class="sb-block-title">Estadísticas por jugador</span>
           <span class="sb-sub" id="sb-players-sub"></span>
         </summary>
         <div class="sb-block-body" id="sb-playerstats"></div>
@@ -60,7 +60,7 @@
 
       <details class="sb-block">
         <summary>
-          <span class="sb-block-title">Total stats</span>
+          <span class="sb-block-title">Totales</span>
           <span class="sb-sub" id="sb-totals-sub"></span>
         </summary>
         <div class="sb-block-body" id="sb-totals"></div>
@@ -70,16 +70,16 @@
     <!-- Right wing: classification -->
     <aside class="sb-side">
       <div class="sb-side-inner">
-        <h3 id="sb-class-title">Classification</h3>
+        <h3 id="sb-class-title">Clasificación</h3>
         <ol class="sb-standings" id="sb-standings"></ol>
       </div>
     </aside>
   </div>
 
   <p class="muted small">
-    Produced entirely by the
+    Generado por el
     <a href="https://github.com/grabifv/CONECTA_CUATRO/actions/workflows/tournament.yml"
-       target="_blank" rel="noopener">tournament GitHub Action</a>,
-    which commits <code>results/leaderboard.json</code>.
+       target="_blank" rel="noopener">torneo automático de GitHub Actions</a>,
+    que publica <code>results/leaderboard.json</code>.
   </p>
 </section>

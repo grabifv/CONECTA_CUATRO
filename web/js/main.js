@@ -26,7 +26,7 @@ function showFatal(what, err) {
   box.innerHTML =
     `<strong>${esc(what)}</strong><br>` +
     `<code>${esc(err && err.message ? err.message : String(err))}</code><br>` +
-    `<span class="muted small">See the browser console for the full stack.</span>`;
+    `<span class="muted small">Mira la consola del navegador para ver el detalle.</span>`;
   console.error(what, err);
 }
 
@@ -37,7 +37,7 @@ function guard(label, fn) {
       return fn(...args);
     } catch (err) {
       console.error(`${label} failed`, err);
-      toast(`${label} failed: ${err.message || err}`);
+      toast(`${label}: algo ha fallado (${err.message || err})`);
     }
   };
 }
@@ -48,7 +48,7 @@ function step(label, fn) {
     fn();
     return true;
   } catch (err) {
-    showFatal(`Could not set up ${label}`, err);
+    showFatal(`No se pudo preparar ${label}`, err);
     return false;
   }
 }
@@ -73,34 +73,34 @@ async function loadScreens() {
 }
 
 async function main() {
-  window.addEventListener("error", (e) => showFatal("Unexpected error", e.error || e.message));
-  window.addEventListener("unhandledrejection", (e) => showFatal("Unexpected error", e.reason));
+  window.addEventListener("error", (e) => showFatal("Error inesperado", e.error || e.message));
+  window.addEventListener("unhandledrejection", (e) => showFatal("Error inesperado", e.reason));
 
   try {
     await loadScreens();
   } catch (err) {
-    showFatal("Could not load the page", err);
+    showFatal("No se pudo cargar la página", err);
     $("boot-status").textContent = "⚠️ " + (err.message || err);
     return;
   }
 
   // DOM-only wiring: safe before the engine exists.
-  step("navigation", setupNav);
-  step("the Play screen", setupPlay);
-  step("the Scoreboard screen", setupScoreboard);
-  step("the Tournament screen", setupTournament);
+  step("la navegación", setupNav);
+  step("la pantalla de juego", setupPlay);
+  step("la clasificación", setupScoreboard);
+  step("el torneo", setupTournament);
 
   try {
     await window.bootEngine((msg) => { $("boot-status").textContent = msg; });
   } catch (err) {
     $("boot-status").textContent = "⚠️ " + (err.message || err);
-    showFatal("The Python engine did not start", err);
+    showFatal("El motor de Python no ha arrancado", err);
     return;
   }
 
   // Anything that needs the engine: the player lists.
-  step("the player list", populateSeatSelects);
-  step("the bracket entrants", tBuildSetup);
+  step("la lista de jugadores", populateSeatSelects);
+  step("los participantes del torneo", tBuildSetup);
 
   $("boot").classList.add("hidden");
 

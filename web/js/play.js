@@ -19,6 +19,7 @@ const G = {
   winnerSeat: null, // 0 or 1; null with gameOver === true is a draw
   line: null, // the four-in-a-row to highlight
   thinking: false,
+  justMoved: false, // animate the next render's newest piece
   aiTimer: null,
   showXray: false,
   showWhy: true,
@@ -40,10 +41,10 @@ function populateSeatSelects() {
     for (const opt of [HUMAN, ...names]) {
       // <option> renders text only — no markup, no SVG — so the icon has to be a
       // glyph and the copy index a Unicode subscript.
-      const o = el("option", null, opt === HUMAN ? `${HUMAN_ICON} ${HUMAN}` : playerText(opt));
+      const o = el("option", null, opt === HUMAN ? `${HUMAN_ICON} Persona` : playerText(opt));
       o.value = opt;
       const meta = META.get(opt);
-      if (meta) o.title = `${meta.description}\nBy: ${meta.authors.join(", ")}`;
+      if (meta) o.title = `${meta.description}\nAutoría: ${meta.authors.join(", ")}`;
       sel.appendChild(o);
     }
     // Default: seat 0 Human, seat 1 a mid-strength bot so a first game is winnable.
@@ -93,6 +94,7 @@ function newGame(size, replayMoves) {
   G.winnerSeat = null;
   G.line = null;
   G.thinking = false;
+  G.justMoved = false;
   $("why").innerHTML = "";
 
   if (replayMoves && replayMoves.length) {
@@ -101,6 +103,7 @@ function newGame(size, replayMoves) {
       if (!commitMove(mv, null)) break;
     }
     G.cursor = G.history.length - 1;
+    G.justMoved = false; // a loaded replay appears at once
   }
   render();
   maybeScheduleAI();
@@ -114,7 +117,7 @@ const seatToMove = () => (G.history.length - 1) % 2; // seat 0 moves first
 function commitMove(move, meta) {
   const before = current();
   if (!window.C4.legalMoves(before).includes(move)) {
-    toast(`Illegal move ${JSON.stringify(move)} — ignored.`);
+    toast(`Jugada no válida (${JSON.stringify(move)}): se ignora.`);
     return false;
   }
   const seat = seatToMove();
@@ -122,6 +125,7 @@ function commitMove(move, meta) {
   G.history.push(after);
   G.moves.push({ seat, move, elapsed: meta?.elapsed ?? null, info: meta?.info ?? null });
   G.cursor = G.history.length - 1;
+  G.justMoved = true;
   logMove(G.moves[G.moves.length - 1]);
 
   const out = window.C4.outcome(after);
@@ -160,13 +164,13 @@ function runAITurn(name) {
     const res = window.C4.askMove(name, current());
     G.thinking = false;
     if (!commitMove(res.move, res)) {
-      toast(`${name} returned an illegal move — stopping.`);
+      toast(`${name} ha devuelto una jugada no válida: partida detenida.`);
       G.gameOver = true;
     }
   } catch (err) {
     G.thinking = false;
     G.gameOver = true;
-    toast(`${name} crashed: ${err}`);
+    toast(`${name} ha fallado: ${err}`);
   }
   render();
   maybeScheduleAI();
@@ -175,6 +179,7 @@ function runAITurn(name) {
 /* ---------------- rendering ---------------- */
 function render() {
   renderStatus();
+  renderTurns();
   renderBoard();
   renderXray();
   renderTimeline();
@@ -183,21 +188,34 @@ function render() {
 
 const PIECE = ["🔴", "🟡"];
 
+function seatName(i) {
+  return G.seats[i] === HUMAN ? `Jugador ${i + 1}` : G.seats[i];
+}
+
 function seatLabel(i) {
-  return `${PIECE[i]} Seat ${i + 1} (${G.seats[i]})`;
+  return `${PIECE[i]} ${seatName(i)}`;
 }
 
 function resultText() {
   return G.winnerSeat == null
-    ? "🤝 Draw — the board is full and nobody connected four."
-    : `🎉 <strong>${seatLabel(G.winnerSeat)}</strong> wins — four in a row!`;
+    ? "🤝 ¡Empate! El tablero se ha llenado sin cuatro en línea."
+    : `🎉 ¡Gana <strong>${esc(seatLabel(G.winnerSeat))}</strong> con cuatro en línea!`;
+}
+
+/* Light up the card of the side to move, and crown the winner. */
+function renderTurns() {
+  for (const i of [0, 1]) {
+    const card = $(`turn-${i}`);
+    card.classList.toggle("active", isLive() && !G.gameOver && seatToMove() === i);
+    card.classList.toggle("winner", isLive() && G.gameOver && G.winnerSeat === i);
+  }
 }
 
 function renderStatus() {
   const st = $("status");
   if (!isLive()) {
-    st.innerHTML = `⏳ Viewing move ${G.cursor} / ${G.moves.length}. ` +
-      `<em>Return to the latest move to keep playing.</em>`;
+    st.innerHTML = `⏳ Viendo la jugada ${G.cursor} de ${G.moves.length}. ` +
+      `<em>Vuelve a la última para seguir jugando.</em>`;
     return;
   }
   if (G.gameOver) {
@@ -208,9 +226,9 @@ function renderStatus() {
   const who = G.seats[seat];
   const chip = seat === 0 ? "chip-a" : "chip-b";
   if (who === HUMAN) {
-    st.innerHTML = `<span class="chip ${chip}">${seatLabel(seat)}</span> your turn — click a column to drop your piece.`;
+    st.innerHTML = `<span class="chip ${chip}">${esc(seatName(seat))}</span> te toca: pulsa una columna para soltar tu ficha.`;
   } else {
-    st.innerHTML = `<span class="chip ${chip}">${seatLabel(seat)}</span> ${who} is ${G.thinking ? "thinking…" : "up next…"}`;
+    st.innerHTML = `<span class="chip ${chip}">${esc(who)}</span> ${G.thinking ? "está pensando…" : "juega a continuación…"}`;
   }
 }
 
@@ -222,8 +240,8 @@ function liveAnalysis() {
 
 function formatScore(score) {
   if (score == null) return null;
-  if (score >= 9000) return "WIN";
-  if (score <= -9000) return "LOSS";
+  if (score >= 9000) return "GANA";
+  if (score <= -9000) return "PIERDE";
   return String(Math.round(score));
 }
 
@@ -234,17 +252,26 @@ function renderBoard() {
     isLive() && !G.gameOver && !G.thinking && G.seats[seatToMove()] === HUMAN;
   const an = liveAnalysis();
 
+  // Only a move that was just made falls into place; scrubbing and redraws
+  // (a seat change, the X-ray toggle) show the board as it stands.
+  const drop = G.justMoved && isLive() && G.cursor > 0
+    ? newPiece(G.history[G.cursor - 1], G.history[G.cursor])
+    : null;
+  G.justMoved = false;
+
   paintBoard(board, state, {
     onPick: interactive ? humanMove : null,
     line: isLive() ? G.line : null,
     targetColumn: an && an.best != null ? an.best : -1,
     scores: an ? an.scores.map(formatScore) : null,
+    drop,
+    ghost: interactive ? seatToMove() + 1 : null,
   });
 
   const old = board.parentElement.querySelector(".win-banner");
   if (old) old.remove();
   if (G.gameOver && isLive()) {
-    const text = G.winnerSeat == null ? "🤝 Draw!" : `🏆 ${seatLabel(G.winnerSeat)} wins!`;
+    const text = G.winnerSeat == null ? "🤝 ¡Empate!" : `🏆 ¡Gana ${seatLabel(G.winnerSeat)}!`;
     board.after(el("div", "win-banner", text));
   }
 }
@@ -254,23 +281,23 @@ function renderXray() {
   if (!G.showXray) { box.classList.add("hidden"); return; }
   box.classList.remove("hidden");
   if (!isLive()) {
-    box.innerHTML = `<strong>X-ray:</strong> return to the latest move to analyse it.`;
+    box.innerHTML = `<strong>Rayos X:</strong> vuelve a la última jugada para analizarla.`;
     return;
   }
   if (G.gameOver) {
-    box.innerHTML = `<strong>X-ray:</strong> the game is over.`;
+    box.innerHTML = `<strong>Rayos X:</strong> la partida ha terminado.`;
     return;
   }
   const an = window.C4.analysis(current());
   const verdicts = {
-    win: "the player to move can <strong>force a win</strong>",
-    loss: "the player to move <strong>loses against best play</strong> (stall and hope!)",
-    unclear: "no forced result in sight",
+    win: "quien mueve <strong>puede forzar la victoria</strong>",
+    loss: "quien mueve <strong>pierde si el rival juega bien</strong> (¡aguanta y reza!)",
+    unclear: "no hay un resultado forzado a la vista",
   };
   box.innerHTML =
-    `<strong>X-ray:</strong> each column scored by a 5-ply search for the player to move ` +
-    `(higher is better). Verdict: ${verdicts[an.verdict] || an.verdict}. ` +
-    (an.best != null ? `Best column: <strong>${an.best + 1}</strong> (outlined).` : "");
+    `<strong>Rayos X:</strong> cada columna puntuada con una búsqueda de 5 jugadas para quien mueve ` +
+    `(más es mejor). Veredicto: ${verdicts[an.verdict] || an.verdict}. ` +
+    (an.best != null ? `Mejor columna: <strong>${an.best + 1}</strong> (marcada).` : "");
 }
 
 function logMove(m) {
@@ -278,15 +305,15 @@ function logMove(m) {
   const cls = m.seat === 0 ? "a" : "b";
   const entry = el("div", `why-entry ${cls}`);
   const head = el("div", "head");
-  head.appendChild(el("span", null, `${seatLabel(m.seat)} · column ${m.move + 1}`));
-  head.appendChild(el("span", "time", m.elapsed != null ? `${m.elapsed.toFixed(1)} ms` : "human"));
+  head.appendChild(el("span", null, `${seatLabel(m.seat)} · columna ${m.move + 1}`));
+  head.appendChild(el("span", "time", m.elapsed != null ? `${m.elapsed.toFixed(1)} ms` : "persona"));
   entry.appendChild(head);
   if (m.info && m.info.note) {
     entry.appendChild(el("div", "note", m.info.note));
     const bits = [];
-    if (m.info.depth != null) bits.push(`depth ${m.info.depth}`);
-    if (m.info.score != null) bits.push(`score ${Number(m.info.score).toFixed(2)}`);
-    if (m.info.nodes != null) bits.push(`${m.info.nodes} nodes`);
+    if (m.info.depth != null) bits.push(`profundidad ${m.info.depth}`);
+    if (m.info.score != null) bits.push(`puntuación ${Number(m.info.score).toFixed(2)}`);
+    if (m.info.nodes != null) bits.push(`${m.info.nodes} nodos`);
     if (bits.length) entry.appendChild(el("div", "note", bits.join(" · ")));
   }
   const body = $("why");
@@ -298,7 +325,7 @@ function renderTimeline() {
   const slider = $("tl-slider");
   slider.max = G.history.length - 1;
   slider.value = G.cursor;
-  $("tl-label").textContent = `move ${G.cursor} / ${G.history.length - 1}`;
+  $("tl-label").textContent = `jugada ${G.cursor} / ${G.history.length - 1}`;
 }
 
 function gotoCursor(idx) {
@@ -328,12 +355,14 @@ function hint() {
   const an = window.C4.analysis(current());
   if (an.best == null) return;
   const why = {
-    win: " — it forces a win!",
-    loss: " — every column loses against best play, this one lasts longest.",
+    win: ": ¡fuerza la victoria!",
+    loss: ": todas pierden si el rival juega bien, esta es la que más aguanta.",
     unclear: ".",
   };
-  toast(`Suggested: column ${an.best + 1}${why[an.verdict] || "."}`);
-  paintBoard($("board"), current(), { onPick: humanMove, targetColumn: an.best });
+  toast(`Prueba la columna ${an.best + 1}${why[an.verdict] || "."}`);
+  paintBoard($("board"), current(), {
+    onPick: humanMove, targetColumn: an.best, ghost: seatToMove() + 1,
+  });
   setTimeout(() => renderBoard(), 1500);
 }
 
@@ -347,8 +376,8 @@ function shareLink() {
   const hash = "#g=" + btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
   const url = location.origin + location.pathname + hash;
   navigator.clipboard?.writeText(url).then(
-    () => toast("Replay link copied to clipboard!"),
-    () => toast("Copy failed — link is in the address bar."),
+    () => toast("¡Enlace de la partida copiado!"),
+    () => toast("No se pudo copiar: el enlace está en la barra de direcciones."),
   );
   history.replaceState(null, "", hash);
 }
@@ -366,10 +395,10 @@ function loadFromHash() {
     const [rows, columns] = payload.s || DEFAULT_SIZE;
     newGame({ rows, columns }, payload.m || []);
     showScreen("game");
-    toast("Loaded a shared replay.");
+    toast("Partida compartida cargada.");
     return true;
   } catch (err) {
-    toast("Could not read the shared link.");
+    toast("No se pudo leer el enlace compartido.");
     return false;
   }
 }
@@ -378,15 +407,15 @@ function loadFromHash() {
 /* ---------------- wiring ---------------- */
 function setupPlay() {
   setupTimeline();
-  $("btn-new").onclick = guard("New game", () => newGame());
-  $("btn-hint").onclick = guard("Hint", hint);
-  $("btn-share").onclick = guard("Share", shareLink);
-  $("btn-play-ai").onclick = guard("Step", () => {
+  $("btn-new").onclick = guard("Nueva partida", () => newGame());
+  $("btn-hint").onclick = guard("Pista", hint);
+  $("btn-share").onclick = guard("Compartir", shareLink);
+  $("btn-play-ai").onclick = guard("Turno del bot", () => {
     clearTimeout(G.aiTimer);
     const name = G.seats[seatToMove()];
     if (name !== HUMAN) runAITurn(name);
   });
   $("cfg-delay").onchange = (e) => { G.delay = parseInt(e.target.value) || 0; };
-  $("toggle-xray").onchange = guard("X-ray", (e) => { G.showXray = e.target.checked; render(); });
+  $("toggle-xray").onchange = guard("Rayos X", (e) => { G.showXray = e.target.checked; render(); });
   $("toggle-why").onchange = (e) => { G.showWhy = e.target.checked; };
 }
