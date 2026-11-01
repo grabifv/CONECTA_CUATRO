@@ -1,85 +1,30 @@
 <section id="screen-scoreboard" class="screen hidden">
   <h1 class="page-title">📊 <span id="sb-title">Clasificación</span></h1>
-  <p class="muted" id="sb-meta">Cargando los resultados del último torneo…</p>
+  <p class="page-sub" id="sb-meta">Cargando los resultados del último torneo…</p>
 
   <div id="sb-empty" class="sb-empty hidden"></div>
 
-  <!-- Player filter: everything below reacts to this selection. -->
-  <div class="sb-filterbar" id="sb-filterbar">
-    <details class="sb-filter" id="sb-filter">
-      <summary class="btn">
-        <span>Jugadores</span>
-        <span class="sb-filter-count" id="sb-filter-count"></span>
-        <span class="sb-filter-caret">▾</span>
-      </summary>
-      <div class="sb-filter-panel">
-        <div class="sb-filter-actions">
-          <button class="btn small" id="sb-filter-all">Todos</button>
-          <button class="btn small" id="sb-filter-none">Ninguno</button>
-        </div>
-        <div class="sb-filter-list" id="sb-filter-list"></div>
-      </div>
-    </details>
-    <span class="muted small" id="sb-filter-hint"></span>
+  <div id="sb-content">
+    <div class="podium-row" id="sb-podium"></div>
+
+    <h2 class="section-title">Los bots, uno a uno</h2>
+    <div class="bot-grid" id="sb-bots"></div>
+
+    <h2 class="section-title">¿Quién gana a quién?</h2>
+    <p class="muted small">
+      Cada casilla es el porcentaje de partidas que gana el bot de la fila contra el de la
+      columna. Verde: suele ganar. Rojo: suele perder.
+    </p>
+    <div class="h2h-wrap" id="sb-h2h"></div>
+
+    <h2 class="section-title">El torneo en números</h2>
+    <div class="facts" id="sb-facts"></div>
+
+    <p class="muted small">
+      Lo genera el
+      <a href="https://github.com/grabifv/CONECTA_CUATRO/actions/workflows/tournament.yml"
+         target="_blank" rel="noopener">torneo automático de GitHub Actions</a>
+      cada vez que cambia el código y cada lunes.
+    </p>
   </div>
-
-  <div class="sb-layout" id="sb-layout">
-    <!-- Center: collapsible blocks -->
-    <div class="sb-center">
-      <details class="sb-block" id="sb-block-radar" open>
-        <summary>
-          <span class="sb-block-title">Comparativa</span>
-          <span class="sb-sub" id="sb-radar-sub"></span>
-        </summary>
-        <div class="sb-block-body" id="sb-radar"></div>
-      </details>
-
-      <details class="sb-block" id="sb-block-structure" open>
-        <summary>
-          <span class="sb-block-title">Torneo</span>
-          <span class="sb-sub" id="sb-structure-sub"></span>
-        </summary>
-        <div class="sb-block-body" id="sb-structure"></div>
-      </details>
-
-      <details class="sb-block" open>
-        <summary>
-          <span class="sb-block-title">Enfrentamientos</span>
-          <span class="sb-sub" id="sb-matches-sub"></span>
-        </summary>
-        <div class="sb-block-body" id="sb-matches"></div>
-      </details>
-
-      <details class="sb-block">
-        <summary>
-          <span class="sb-block-title">Estadísticas por jugador</span>
-          <span class="sb-sub" id="sb-players-sub"></span>
-        </summary>
-        <div class="sb-block-body" id="sb-playerstats"></div>
-      </details>
-
-      <details class="sb-block">
-        <summary>
-          <span class="sb-block-title">Totales</span>
-          <span class="sb-sub" id="sb-totals-sub"></span>
-        </summary>
-        <div class="sb-block-body" id="sb-totals"></div>
-      </details>
-    </div>
-
-    <!-- Right wing: classification -->
-    <aside class="sb-side">
-      <div class="sb-side-inner">
-        <h3 id="sb-class-title">Clasificación</h3>
-        <ol class="sb-standings" id="sb-standings"></ol>
-      </div>
-    </aside>
-  </div>
-
-  <p class="muted small">
-    Generado por el
-    <a href="https://github.com/grabifv/CONECTA_CUATRO/actions/workflows/tournament.yml"
-       target="_blank" rel="noopener">torneo automático de GitHub Actions</a>,
-    que publica <code>results/leaderboard.json</code>.
-  </p>
 </section>

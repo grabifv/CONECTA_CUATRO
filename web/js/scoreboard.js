@@ -1,482 +1,201 @@
-// Conecta Cuatro Arena — the Scoreboard screen
+// Conecta Cuatro — the Scoreboard screen
 //
-// Renders results/leaderboard.json: standings, the player filter, the radar
-// chart, per-match details and totals.
+// Renders results/leaderboard.json as a podium, one card per bot and a
+// head-to-head grid. The tournament enters each bot more than once
+// ("hard_0", "hard_1"); everything here is grouped by bot *kind*, which is what
+// a reader cares about.
 //
 // Loaded as a plain script (not an ES module): the whole app shares one global
 // namespace by design, and plain scripts keep working without a bundler.
 "use strict";
 
-/* ---------------- scoreboard ---------------- */
-
-/* Describe the starting boards. The leaderboard records each one as a full grid,
-   which is unreadable in a header; the CLI also records the openings (columns
-   already played, 0-based) that produced them, which are shown 1-based here. */
-function openingsText(cfg) {
-  const boards = cfg.starting_states || [];
-  const size = boards.length ? `${boards[0].length}×${boards[0][0].length}` : "?";
-  if (!Array.isArray(cfg.openings)) return `${boards.length} tablero(s) ${size}`;
-  const shown = cfg.openings.map((o) => (o.length ? o.map((c) => c + 1).join("-") : "vacía"));
-  return `${size} · aperturas ${shown.join(", ")}`;
-}
-const MEDALS = { 1: "🥇", 2: "🥈", 3: "🥉" };
-const fmtMs = (v) => (v == null ? "—" : `${Number(v).toFixed(v < 10 ? 3 : 1)} ms`);
-const MODE_LABEL = { simple: "Todos contra todos", league: "Liga (Elo)", championship: "Campeonato" };
-const MODE_BLURB = {
-  simple: "Cada pareja juega un enfrentamiento; se ordena por puntos (3 por victoria, 1 por empate).",
-  league: "Cada pareja juega un enfrentamiento; se ordena por Elo.",
-  championship: "Fase de grupos (pasan los dos primeros) y después eliminatorias.",
+const MODE_LABEL = { simple: "todos contra todos", league: "liga con Elo", championship: "campeonato" };
+const LEVEL_LABEL = { random: "Al azar", easy: "Fácil", medium: "Medio", hard: "Difícil" };
+/* The reference bots describe themselves in English (the docs and the
+   tournament share those strings); the page shows them in Spanish. */
+const DESC_ES = {
+  random: "Suelta la ficha en una columna libre al azar. Sin estrategia: es la referencia que todos deben superar.",
+  easy: "Mira una jugada por delante: gana si puede, tapa si debe y, si no, juega lo más al centro posible. Cae en cualquier doble amenaza.",
+  medium: "Minimax con poda alfa-beta a 4 jugadas que valora tener fichas en el centro. No se le escapa lo que ve, pero no construye amenazas.",
+  hard: "Minimax con poda alfa-beta a 5 jugadas que cuenta las líneas de cuatro abiertas de cada jugador. Fuerte, pero no perfecto.",
 };
 
 async function loadScoreboard() {
-  const meta = $("sb-meta");
-  const layout = $("sb-layout");
+  const content = $("sb-content");
   const empty = $("sb-empty");
   try {
     const resp = await fetch("leaderboard.json", { cache: "no-cache" });
-    if (!resp.ok) throw new Error("not found");
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
     empty.classList.add("hidden");
-    layout.classList.remove("hidden");
+    content.classList.remove("hidden");
     renderScoreboard(data);
-  } catch {
-    layout.classList.add("hidden");
+  } catch (err) {
+    content.classList.add("hidden");
     empty.classList.remove("hidden");
     empty.textContent =
-      "Todavía no hay clasificación. Ejecuta el torneo (`conecta-cuatro-torneo`) o el workflow del torneo para generar results/leaderboard.json.";
-    meta.textContent = "";
+      "Todavía no hay clasificación. Se genera con el torneo automático " +
+      "(o en local con `conecta-cuatro-torneo`).";
+    $("sb-meta").textContent = "";
   }
 }
 
-/* The scoreboard's current view state. `selected` holds roster names ("hard_0"). */
-const SB = { data: null, useElo: false, mode: "simple", selected: new Set() };
-
-/* How many copies of each kind ran. The count is per kind — the reference bots
-   are entered twice, submissions once — so print a range when it is not uniform
-   rather than a single number that would be wrong for most of the roster. */
-function rosterShape(data, cfg) {
-  const counts = Object.values(cfg.player_copies || {});
-  const entrants = (data.standings || []).length;
-  if (!counts.length) return `${cfg.player_repetition ?? "?"} por tipo`;
-  const lo = Math.min(...counts);
-  const hi = Math.max(...counts);
-  const per = lo === hi ? `${lo} por tipo` : `${lo}-${hi} por tipo`;
-  return `${entrants} participantes, ${per}`;
+/* Fold the per-copy standings and matches into one record per bot kind. */
+function groupByKind(data) {
+  const kinds = new Map();
+  const kindOf = (name) => splitPlayer(name)[0];
+  const get = (k) => {
+    if (!kinds.has(k)) {
+      kinds.set(k, { name: k, wins: 0, draws: 0, losses: 0, forfeits: 0,
+                     games: 0, points: 0, elo: [], vs: new Map() });
+    }
+    return kinds.get(k);
+  };
+  for (const row of data.standings || []) {
+    const k = get(kindOf(row.player));
+    k.wins += row.wins; k.draws += row.draws ?? 0; k.losses += row.losses;
+    k.forfeits += row.forfeits ?? 0; k.games += row.games; k.points += row.points;
+    if (row.elo != null) k.elo.push(row.elo);
+  }
+  // Head to head, kind against kind: [wins, draws, losses] from the row's side.
+  const bump = (a, b, w, d, l) => {
+    const rec = get(a).vs.get(b) || [0, 0, 0];
+    rec[0] += w; rec[1] += d; rec[2] += l;
+    get(a).vs.set(b, rec);
+  };
+  for (const m of data.matches || []) {
+    const a = kindOf(m.player_a), b = kindOf(m.player_b);
+    const d = m.draws ?? 0;
+    bump(a, b, m.a_wins, d, m.b_wins);
+    bump(b, a, m.b_wins, d, m.a_wins);
+  }
+  const list = [...kinds.values()];
+  for (const k of list) {
+    k.rating = k.elo.length ? k.elo.reduce((x, y) => x + y, 0) / k.elo.length : null;
+    k.winRate = k.games ? k.wins / k.games : 0;
+  }
+  const useElo = list.every((k) => k.rating != null);
+  list.sort((x, y) => (useElo ? y.rating - x.rating : y.points / (y.games || 1) - x.points / (x.games || 1)));
+  return { list, useElo };
 }
 
 function renderScoreboard(data) {
-  const cfg = data.config || {};
-  const mode = cfg.tournament || "simple";
-  const useElo = !!cfg.elo;
-
-  // The leaderboard carries its own player directory, so the scoreboard does not
-  // depend on the live registry still matching the run that produced it.
   for (const p of data.players || []) META.set(p.name, p);
+  const cfg = data.config || {};
+  const { list, useElo } = groupByKind(data);
 
-  SB.data = data;
-  SB.mode = mode;
-  SB.useElo = useElo;
-  SB.selected = new Set((data.standings || []).map((r) => r.player));
-
-  $("sb-title").textContent = `Clasificación · ${MODE_LABEL[mode] || mode}`;
+  $("sb-title").textContent = "Clasificación";
+  const when = (data.generated_at || "").replace("T", " a las ").replace(/:\d\dZ$/, " UTC");
   $("sb-meta").textContent =
-    `Generado el ${data.generated_at} · ${MODE_LABEL[mode] || mode} · ` +
-    `${rosterShape(data, cfg)} · ${cfg.repetitions ?? "?"} rep./tablero · ` +
-    `${openingsText(cfg)} · ` +
-    `tiempo ${cfg.game_budget_ms != null ? cfg.game_budget_ms + " ms/partida" : "sin límite"}`;
+    `Último torneo: ${when} · ${MODE_LABEL[cfg.tournament] || cfg.tournament || "torneo"} · ` +
+    `${(data.totals && data.totals.games) ?? "?"} partidas entre ${list.length} bots.`;
 
-  buildPlayerFilter();
-  renderStructure(data, mode);   // tournament-wide: never filtered
-  renderTotals(data.totals || {});
-  renderFiltered();
+  renderPodium(list, useElo);
+  renderBots(list, useElo);
+  renderHeadToHead(list);
+  renderFacts(data.totals || {});
 }
 
-/* Everything that reacts to the player filter. */
-function renderFiltered() {
-  const data = SB.data || {};
-  const keep = (name) => SB.selected.has(name);
-  const standings = (data.standings || []).filter((r) => keep(r.player));
-  const stats = (data.player_stats || []).filter((s) => keep(s.player));
-  // A match is shown only when BOTH sides are selected: half a pairing tells you
-  // nothing, and it would make the score column unreadable.
-  const matches = (data.matches || []).filter((m) => keep(m.player_a) && keep(m.player_b));
-
-  const total = (data.standings || []).length;
-  $("sb-filter-count").textContent = `${SB.selected.size}/${total}`;
-  $("sb-filter-hint").textContent =
-    SB.selected.size === total
-      ? "mostrando todos los jugadores"
-      : `mostrando ${SB.selected.size} de ${total} jugadores`;
-
-  renderStandings(standings, SB.useElo);
-  renderRadar(stats, SB.useElo);
-  renderMatches(matches);
-  renderPlayerStats(stats, SB.useElo);
+function scoreText(k, useElo) {
+  return useElo ? `${Math.round(k.rating)} Elo` : `${k.points} pts`;
 }
 
-/* ---------------- player filter ---------------- */
-function buildPlayerFilter() {
-  const list = $("sb-filter-list");
-  list.innerHTML = "";
-  for (const row of SB.data.standings || []) {
-    const name = row.player;
-    const label = el("label", "sb-filter-item");
-    const cb = el("input");
-    cb.type = "checkbox";
-    cb.checked = true;
-    cb.value = name;
-    cb.onchange = () => {
-      if (cb.checked) SB.selected.add(name);
-      else SB.selected.delete(name);
-      renderFiltered();
-    };
-    label.appendChild(cb);
-    const tag = el("span", "sb-filter-name");
-    tag.innerHTML = playerHtml(name);
-    label.appendChild(tag);
-    list.appendChild(label);
-  }
-  const setAll = (on) => {
-    SB.selected = on ? new Set((SB.data.standings || []).map((r) => r.player)) : new Set();
-    for (const cb of list.querySelectorAll("input[type=checkbox]")) cb.checked = on;
-    renderFiltered();
-  };
-  $("sb-filter-all").onclick = guard("Select all", (e) => { e.preventDefault(); setAll(true); });
-  $("sb-filter-none").onclick = guard("Deselect all", (e) => { e.preventDefault(); setAll(false); });
-}
-
-/* ---------------- radar chart ---------------- */
-/* Three axes, hand-drawn as SVG: no chart library is available offline, and a
-   triangle needs no more than trigonometry. */
-const RADAR_AXES = [
-  { key: "elo", label: "Elo", higherIsBetter: true },
-  // The ranking axis when Elo is off (simple mode). Points live in the
-  // standings, not in the per-player stats, so `radarValue` looks them up
-  // there. Without this axis the triangle would collapse into a line.
-  { key: "points", label: "Puntos", higherIsBetter: true },
-  { key: "win_rate", label: "% victorias", higherIsBetter: true },
-  // Faster thinking should read as "better", i.e. further from the centre — so
-  // this axis is inverted. Without that, the slowest bot would look strongest.
-  { key: "avg_move_ms", label: "Rapidez", higherIsBetter: false },
-];
-
-function renderRadar(stats, useElo) {
-  const box = $("sb-radar");
+function renderPodium(list, useElo) {
+  const box = $("sb-podium");
   box.innerHTML = "";
-  // Exactly one ranking axis: Elo when the run rated players, points otherwise.
-  const axes = RADAR_AXES.filter((a) =>
-    a.key === "elo" ? useElo : a.key === "points" ? !useElo : true
-  );
-  const points = new Map(
-    ((SB.data || {}).standings || []).map((r) => [r.player, Number(r.points) || 0])
-  );
-  const radarValue = (s, a) =>
-    (a.key === "points" ? points.get(s.player) : Number(s[a.key])) || 0;
-  $("sb-radar-sub").textContent = `${stats.length} shown · ${axes.map((a) => a.label).join(" · ")}`;
-
-  if (!stats.length) {
-    box.appendChild(el("p", "muted", "No hay jugadores seleccionados."));
-    return;
-  }
-
-  // Normalise each axis across the *shown* players, so the chart always uses its
-  // full area. A flat axis (everyone equal) sits at mid-radius.
-  const ranges = axes.map((a) => {
-    const vals = stats.map((s) => radarValue(s, a));
-    return { min: Math.min(...vals), max: Math.max(...vals) };
-  });
-  const norm = (value, i) => {
-    const { min, max } = ranges[i];
-    if (max === min) return 0.55;
-    const t = (value - min) / (max - min);
-    // Floor at 0.12 so the weakest player is still a visible shape, not a dot.
-    return 0.12 + 0.88 * (axes[i].higherIsBetter ? t : 1 - t);
-  };
-
-  const SIZE = 320, C = SIZE / 2, R = C - 46;
-  const angle = (i) => (Math.PI * 2 * i) / axes.length - Math.PI / 2;
-  const pt = (i, r) => [C + Math.cos(angle(i)) * R * r, C + Math.sin(angle(i)) * R * r];
-
-  const parts = [];
-  // Grid rings + spokes.
-  for (const ring of [0.25, 0.5, 0.75, 1]) {
-    const pts = axes.map((_, i) => pt(i, ring).map((n) => n.toFixed(1)).join(",")).join(" ");
-    parts.push(`<polygon class="radar-grid" points="${pts}"/>`);
-  }
-  axes.forEach((a, i) => {
-    const [x, y] = pt(i, 1);
-    parts.push(`<line class="radar-spoke" x1="${C}" y1="${C}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}"/>`);
-    const [lx, ly] = pt(i, 1.2);
-    const anchor = Math.abs(lx - C) < 6 ? "middle" : lx > C ? "start" : "end";
-    parts.push(
-      `<text class="radar-axis" x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" ` +
-      `text-anchor="${anchor}">${esc(a.label)}</text>`
-    );
-  });
-  // One polygon per player.
-  stats.forEach((s, idx) => {
-    const hue = Math.round((360 * idx) / Math.max(1, stats.length));
-    const pts = axes
-      .map((a, i) => pt(i, norm(radarValue(s, a), i)).map((n) => n.toFixed(1)).join(","))
-      .join(" ");
-    parts.push(
-      `<polygon class="radar-shape" points="${pts}" ` +
-      `style="stroke:hsl(${hue} 75% 60%);fill:hsl(${hue} 75% 60% / 0.13)"/>`
-    );
-  });
-
-  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  svg.setAttribute("viewBox", `0 0 ${SIZE} ${SIZE}`);
-  svg.setAttribute("class", "radar");
-  svg.setAttribute("role", "img");
-  svg.setAttribute("aria-label", `Comparativa de ${stats.length} jugadores`);
-  svg.innerHTML = parts.join("");
-  const wrap = el("div", "radar-wrap");
-  wrap.appendChild(svg);
-
-  const legend = el("div", "radar-legend");
-  stats.forEach((s, idx) => {
-    const hue = Math.round((360 * idx) / Math.max(1, stats.length));
-    const item = el("span", "radar-legend-item");
-    item.innerHTML =
-      `<span class="radar-swatch" style="background:hsl(${hue} 75% 60%)"></span>` + playerHtml(s.player);
-    legend.appendChild(item);
-  });
-  wrap.appendChild(legend);
-  box.appendChild(wrap);
-  box.appendChild(el("p", "muted small",
-    "Cada eje se escala entre los jugadores mostrados. La rapidez está invertida: " +
-    "cuanto menos tarda en pensar, más hacia fuera."));
-}
-
-/* Right-wing classification column. */
-function renderStandings(standings, useElo) {
-  $("sb-class-title").textContent = useElo ? "Clasificación · Elo" : "Clasificación · puntos";
-  const ol = $("sb-standings");
-  ol.innerHTML = "";
-  for (const row of standings) {
-    const li = el("li", `sb-rank rank-${row.rank}`);
-    const score = useElo ? Math.round(row.elo) : `${row.points} pts`;
-    li.innerHTML =
-      `<span class="sb-rank-no">${MEDALS[row.rank] || row.rank}</span>` +
-      `<span class="sb-rank-name">${playerHtml(row.player)}</span>` +
-      `<span class="sb-rank-score">${esc(score)}</span>` +
-      `<span class="sb-rank-wl">${row.wins}–${row.draws ?? 0}–${row.losses}` +
-      `${row.forfeits ? ` · ${row.forfeits} ff` : ""}</span>`;
-    ol.appendChild(li);
+  // Second, first, third: the winner stands in the middle, highest.
+  const places = [[1, "silver", "🥈"], [0, "gold", "🥇"], [2, "bronze", "🥉"]];
+  for (const [i, cls, medal] of places) {
+    const k = list[i];
+    if (!k) continue;
+    const step = el("div", `pod ${cls}`);
+    step.innerHTML =
+      `<div class="pod-icon">${esc(playerIcon(k.name))}</div>` +
+      `<div class="pod-name">${esc(k.name)}</div>` +
+      `<div class="pod-score">${esc(scoreText(k, useElo))}</div>` +
+      `<div class="pod-block"><span>${medal}</span>${i + 1}º</div>`;
+    box.appendChild(step);
   }
 }
 
-/* Tournament structure block (mode-dependent). */
-function renderStructure(data, mode) {
-  $("sb-structure-sub").textContent = MODE_LABEL[mode] || mode;
-  const box = $("sb-structure");
+function renderBots(list, useElo) {
+  const box = $("sb-bots");
   box.innerHTML = "";
-  box.appendChild(el("p", "muted", MODE_BLURB[mode] || ""));
-
-  const struct = data.structure || {};
-  if (mode !== "championship") {
-    const t = data.totals || {};
-    box.appendChild(el("p", null,
-      `${t.players ?? "?"} jugadores · ${t.matches ?? "?"} enfrentamientos · ${t.games ?? "?"} partidas.`));
-    return;
-  }
-
-  // Group phase
-  const groupsWrap = el("div", "sb-groups");
-  for (const g of struct.groups || []) {
-    const card = el("div", "sb-group");
-    card.appendChild(el("h4", null, g.name));
-    const table = el("table", "sb-mini");
-    table.innerHTML =
-      "<thead><tr><th>#</th><th>Jugador</th><th>Pts</th><th>G</th><th>E</th><th>P</th></tr></thead>";
-    const tb = el("tbody");
-    for (const r of g.table) {
-      const advanced = (g.advance || []).includes(r.player);
-      const tr = el("tr", advanced ? "advances" : null);
-      tr.innerHTML =
-        `<td>${r.rank}</td><td>${playerHtml(r.player)}${advanced ? " ⬆" : ""}</td>` +
-        `<td>${r.points}</td><td>${r.wins}</td><td>${r.draws ?? 0}</td><td>${r.losses}</td>`;
-      tb.appendChild(tr);
-    }
-    table.appendChild(tb);
-    card.appendChild(table);
-    groupsWrap.appendChild(card);
-  }
-  box.appendChild(el("h4", "sb-phase-title", "Fase de grupos"));
-  box.appendChild(groupsWrap);
-
-  // Knockout bracket
-  const bracket = struct.bracket || {};
-  box.appendChild(el("h4", "sb-phase-title", "Eliminatorias"));
-  const brWrap = el("div", "sb-bracket");
-  for (const round of bracket.rounds || []) {
-    const col = el("div", "sb-round");
-    col.appendChild(el("div", "sb-round-name", round.name));
-    for (const tie of round.ties) {
-      const card = el("div", "sb-tie");
-      card.appendChild(tieSide(tie.a, tie.a_wins, tie.winner === tie.a, tie.b == null));
-      card.appendChild(tieSide(tie.b, tie.b_wins, tie.winner === tie.b, false));
-      col.appendChild(card);
-    }
-    brWrap.appendChild(col);
-  }
-  box.appendChild(brWrap);
-  if (bracket.champion) {
-    const champ = el("div", "sb-champion");
-    champ.innerHTML = `🏆 Campeón: ${playerHtml(bracket.champion)}`;
-    box.appendChild(champ);
-  }
+  list.forEach((k, idx) => {
+    const meta = META.get(k.name) || {};
+    const pct = (n) => (k.games ? (100 * n) / k.games : 0);
+    const card = el("article", "bot-card");
+    card.innerHTML =
+      `<header>` +
+      `<span class="bot-rank">${idx + 1}</span>` +
+      `<span class="bot-icon">${esc(playerIcon(k.name))}</span>` +
+      `<div class="bot-id"><strong>${esc(k.name)}</strong>` +
+      `<span class="bot-level">${esc(LEVEL_LABEL[k.name] || (meta.authors || []).join(", ") || "Bot")}</span></div>` +
+      `<span class="bot-score">${esc(scoreText(k, useElo))}</span>` +
+      `</header>` +
+      `<p class="bot-desc">${esc(DESC_ES[k.name] || meta.description || "")}</p>` +
+      `<div class="wdl" title="Victorias / empates / derrotas">` +
+      `<span class="w" style="width:${pct(k.wins)}%"></span>` +
+      `<span class="d" style="width:${pct(k.draws)}%"></span>` +
+      `<span class="l" style="width:${pct(k.losses)}%"></span></div>` +
+      `<div class="wdl-legend">` +
+      `<span><i class="w"></i>${k.wins} victorias</span>` +
+      `<span><i class="d"></i>${k.draws} empates</span>` +
+      `<span><i class="l"></i>${k.losses} derrotas</span>` +
+      `</div>` +
+      `<footer>${Math.round(100 * k.winRate)}% de victorias en ${k.games} partidas` +
+      `${k.forfeits ? ` · ${k.forfeits} descalificaciones` : ""}</footer>`;
+    box.appendChild(card);
+  });
 }
 
-function tieSide(name, wins, isWinner, isBye) {
-  const row = el("div", `sb-tie-side${isWinner ? " won" : ""}`);
-  if (name == null) {
-    row.appendChild(el("span", "sb-tie-name muted", "— bye —"));
-    return row;
-  }
-  const tieName = el("span", "sb-tie-name");
-  tieName.innerHTML = playerHtml(name);
-  row.appendChild(tieName);
-  if (!isBye) row.appendChild(el("span", "sb-tie-score", String(wins)));
-  return row;
-}
-
-/* Match summary — one expandable entry per match, mirroring Player stats. */
-function renderMatches(matches) {
-  $("sb-matches-sub").textContent = `${matches.length} matches`;
-  const box = $("sb-matches");
+function renderHeadToHead(list) {
+  const box = $("sb-h2h");
   box.innerHTML = "";
-  if (!matches.length) {
-    box.appendChild(el("p", "muted", "No hay enfrentamientos entre los jugadores seleccionados."));
-    return;
-  }
-  for (const m of matches) {
-    const d = el("details", "sb-match");
-    const summary = el("summary");
-    const decided = m.winner
-      ? `<span class="sb-match-win">${playerHtml(m.winner)}</span>`
-      : `<span class="muted">igualados</span>`;
-    summary.innerHTML =
-      `<span class="sb-match-pair">${playerHtml(m.player_a)}` +
-      `<span class="muted"> vs </span>${playerHtml(m.player_b)}</span>` +
-      `<span class="sb-match-score">${m.a_wins}–${m.b_wins}${m.draws ? ` (${m.draws} e)` : ""}</span>` +
-      `<span class="sb-match-meta">${decided}` +
-      `${m.forfeits ? ` · <span class="warn">${m.forfeits} ff</span>` : ""}</span>`;
-    d.appendChild(summary);
-
-    const body = el("div", "sb-match-body");
-    const tiles = el("div", "sb-tiles");
-    tiles.appendChild(statTile("Fase", m.phase || "—"));
-    tiles.appendChild(statTile("Partidas", String(m.games)));
-    tiles.appendChild(statTile("Marcador", `${m.a_wins}–${m.b_wins}`));
-    tiles.appendChild(statTile("Empates", String(m.draws ?? 0)));
-    tiles.appendChild(statTile("Descalificaciones", String(m.forfeits ?? 0)));
-    body.appendChild(tiles);
-
-    // Per-side timing, which the flat table had no room for.
-    const table = el("table", "sb-mini");
-    table.innerHTML =
-      "<thead><tr><th>Jugador</th><th>Victorias</th><th>Jugada media</th>" +
-      "<th>Desv.</th><th>Más lenta</th></tr></thead>";
-    const tb = el("tbody");
-    for (const side of ["a", "b"]) {
-      const name = m[`player_${side}`];
-      const tr = el("tr", m.winner === name ? "advances" : null);
-      tr.innerHTML =
-        `<td>${playerHtml(name)}</td>` +
-        `<td class="num">${m[`${side}_wins`]}</td>` +
-        `<td class="num">${fmtMs(m[`${side}_avg_move_ms`])}</td>` +
-        `<td class="num">${fmtMs(m[`${side}_std_move_ms`])}</td>` +
-        `<td class="num">${fmtMs(m[`${side}_max_move_ms`])}</td>`;
-      tb.appendChild(tr);
-    }
-    table.appendChild(tb);
-    body.appendChild(el("h5", "sb-h2h", "Por jugador"));
-    body.appendChild(table);
-    d.appendChild(body);
-    box.appendChild(d);
-  }
-}
-
-/* Player stats — per-player card with head-to-head breakdown. */
-function renderPlayerStats(stats, useElo) {
-  $("sb-players-sub").textContent = `${stats.length} jugadores`;
-  const box = $("sb-playerstats");
-  box.innerHTML = "";
-  for (const s of stats) {
-    const d = el("details", "sb-player");
-    const summary = el("summary");
-    summary.innerHTML =
-      `<span class="sb-player-name">${playerHtml(s.player)}</span>` +
-      `<span class="sb-player-quick">${s.wins}–${s.draws ?? 0}–${s.losses}` +
-      `${useElo ? ` · elo ${Math.round(s.elo)}` : ""} · ${(s.win_rate * 100).toFixed(0)}%</span>`;
-    d.appendChild(summary);
-
-    const body = el("div", "sb-player-body");
-    const tiles = el("div", "sb-tiles");
-    tiles.appendChild(statTile("% victorias", `${(s.win_rate * 100).toFixed(0)}%`));
-    tiles.appendChild(statTile("Victorias / Empates / Derrotas", `${s.wins} / ${s.draws ?? 0} / ${s.losses}`));
-    tiles.appendChild(statTile("Descalificaciones", String(s.forfeits)));
-    tiles.appendChild(statTile("Jugada media", fmtMs(s.avg_move_ms)));
-    tiles.appendChild(statTile("Desviación", fmtMs(s.std_move_ms)));
-    tiles.appendChild(statTile("Jugada más lenta", fmtMs(s.max_move_ms)));
-    tiles.appendChild(statTile("Jugadas hechas", String(s.moves_made)));
-    if (useElo) tiles.appendChild(statTile("Elo", String(Math.round(s.elo))));
-    body.appendChild(tiles);
-
-    // Head-to-head follows the same filter, so a hidden player never appears here.
-    const opponents = (s.opponents || []).filter((o) => SB.selected.has(o.opponent));
-    if (opponents.length) {
-      const oppTable = el("table", "sb-mini");
-      oppTable.innerHTML = "<thead><tr><th>Rival</th><th>G</th><th>E</th><th>P</th></tr></thead>";
-      const tb = el("tbody");
-      for (const o of opponents) {
-        const tr = el("tr");
-        tr.innerHTML = `<td>${playerHtml(o.opponent)}</td><td>${o.wins}</td><td>${o.draws ?? 0}</td><td>${o.losses}</td>`;
-        tb.appendChild(tr);
+  const table = el("table", "h2h");
+  let html = "<thead><tr><th></th>";
+  for (const col of list) html += `<th title="${esc(col.name)}">${esc(playerIcon(col.name))}<br>${esc(col.name)}</th>`;
+  html += "</tr></thead><tbody>";
+  for (const row of list) {
+    html += `<tr><th>${esc(playerIcon(row.name))} ${esc(row.name)}</th>`;
+    for (const col of list) {
+      const rec = row.vs.get(col.name);
+      if (!rec || row.name === col.name) {
+        html += `<td class="self">—</td>`;
+        continue;
       }
-      oppTable.appendChild(tb);
-      body.appendChild(el("h5", "sb-h2h", "Cara a cara"));
-      body.appendChild(oppTable);
+      const games = rec[0] + rec[1] + rec[2];
+      const rate = games ? rec[0] / games : 0;
+      // Hue from red (loses) through yellow to green (wins).
+      const hue = Math.round(rate * 130);
+      html += `<td style="--h:${hue}" title="${rec[0]} victorias, ${rec[1]} empates, ${rec[2]} derrotas">` +
+        `${Math.round(100 * rate)}%</td>`;
     }
-    d.appendChild(body);
-    box.appendChild(d);
+    html += "</tr>";
+  }
+  table.innerHTML = html + "</tbody>";
+  box.appendChild(table);
+}
+
+function renderFacts(t) {
+  const box = $("sb-facts");
+  box.innerHTML = "";
+  const facts = [
+    ["🎮", t.games ?? "—", "partidas jugadas"],
+    ["🤝", t.draws ?? "—", "empates"],
+    ["📏", t.avg_game_moves != null ? Math.round(t.avg_game_moves) : "—", "jugadas por partida, de media"],
+    ["🐢", t.longest_game_moves ?? "—", "jugadas en la partida más larga"],
+    ["🚫", t.forfeits ?? "—", "descalificaciones"],
+    ["⏱️", t.total_move_time_ms != null ? `${(t.total_move_time_ms / 1000).toFixed(1)} s` : "—", "pensando, entre todos"],
+  ];
+  for (const [icon, value, label] of facts) {
+    const tile = el("div", "fact");
+    tile.innerHTML = `<span class="fact-icon">${icon}</span><strong>${esc(String(value))}</strong><span>${esc(label)}</span>`;
+    box.appendChild(tile);
   }
 }
 
-/* Total stats — overview tiles. */
-function renderTotals(t) {
-  $("sb-totals-sub").textContent = `${t.games ?? "?"} games`;
-  const box = $("sb-totals");
-  box.innerHTML = "";
-  const tiles = el("div", "sb-tiles");
-  tiles.appendChild(statTile("Jugadores", String(t.players ?? "—")));
-  tiles.appendChild(statTile("Enfrentamientos", String(t.matches ?? "—")));
-  tiles.appendChild(statTile("Partidas", String(t.games ?? "—")));
-  tiles.appendChild(statTile("Jugadas totales", String(t.total_moves ?? "—")));
-  tiles.appendChild(statTile("Duración media", `${t.avg_game_moves ?? "—"} jugadas`));
-  tiles.appendChild(statTile("Partida más larga", `${t.longest_game_moves ?? "—"} jugadas`));
-  tiles.appendChild(statTile("Descalificaciones", String(t.forfeits ?? "—")));
-  tiles.appendChild(statTile("Tiempo pensando",
-    t.total_move_time_ms != null ? `${(t.total_move_time_ms / 1000).toFixed(2)} s` : "—"));
-  box.appendChild(tiles);
-}
-
-function statTile(label, value) {
-  const tile = el("div", "sb-tile");
-  tile.appendChild(el("div", "sb-tile-value", value));
-  tile.appendChild(el("div", "sb-tile-label", label));
-  return tile;
-}
-
-
-/* ---------------- wiring ---------------- */
 function setupScoreboard() {
-  // A <details> dropdown stays open until toggled, which feels broken. Bound
-  // once here rather than on every filter rebuild.
-  document.addEventListener("click", (e) => {
-    const box = $("sb-filter");
-    if (box && box.open && !box.contains(e.target)) box.open = false;
-  });
+  // Everything is drawn on demand when the screen opens (see showScreen);
+  // there is nothing to wire up front.
 }

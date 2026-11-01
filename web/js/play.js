@@ -1,7 +1,9 @@
-// Conecta Cuatro Arena — the Play screen
+// Conecta Cuatro — the Play screen
 //
-// One free-form game: human or AI in either seat, X-ray, hints, move log,
-// timeline scrubbing and shareable replay links.
+// One game at a time between two seats, each a person or any bot, plus what
+// makes a session with a friend fun: names, a running score, a rematch that
+// swaps who starts, undo, hints, X-ray, a move log, a timeline and shareable
+// replay links.
 //
 // Loaded as a plain script (not an ES module): the whole app shares one global
 // namespace by design, and plain scripts keep working without a bundler.
@@ -11,7 +13,7 @@ const HUMAN = "Human";
 
 const G = {
   config: { rows: DEFAULT_SIZE[0], columns: DEFAULT_SIZE[1] },
-  seats: [HUMAN, HUMAN], // seat 0 (first, X) and seat 1 (second, O)
+  seats: [HUMAN, HUMAN], // seat 0 (red, moves first) and seat 1 (yellow)
   history: [], // states; history[0] is the start
   moves: [], // {seat, move: column, elapsed, info} for each transition
   cursor: 0, // which history index is shown
@@ -20,11 +22,20 @@ const G = {
   line: null, // the four-in-a-row to highlight
   thinking: false,
   justMoved: false, // animate the next render's newest piece
+  replaying: false, // loading a shared game: nothing is scored
+  scored: false, // this game's result is already in the score
+  score: [0, 0], // wins per seat this session
+  draws: 0,
   aiTimer: null,
+  resultTimer: null,
   showXray: false,
   showWhy: true,
   delay: 600,
 };
+
+const PIECE = ["🔴", "🟡"];
+/* The bot each quick-play level puts in the yellow seat. */
+const LEVELS = { easy: "easy", medium: "medium", hard: "hard" };
 
 /* ---------------- setup / seats ---------------- */
 /* Preferred default opponent, best first — the first one present is used. */
@@ -47,7 +58,7 @@ function populateSeatSelects() {
       if (meta) o.title = `${meta.description}\nAutoría: ${meta.authors.join(", ")}`;
       sel.appendChild(o);
     }
-    // Default: seat 0 Human, seat 1 a mid-strength bot so a first game is winnable.
+    // Default: red is a person, yellow a mid-strength bot so a first game is winnable.
     sel.value = i === 1 && preferred ? preferred : HUMAN;
     G.seats[i] = sel.value;
     sel.onchange = () => {
@@ -57,6 +68,21 @@ function populateSeatSelects() {
       render();
     };
   }
+}
+
+/* Set both seats at once (the quick-play buttons), clear the score, start. */
+function applyPreset(preset) {
+  const seats = preset === "friends" ? [HUMAN, HUMAN] : [HUMAN, LEVELS[preset] || preset];
+  for (const i of [0, 1]) {
+    const sel = $(`seat-${i}`);
+    sel.value = seats[i];
+    G.seats[i] = sel.value || HUMAN;
+  }
+  resetScore();
+  newGame();
+  toast(preset === "friends"
+    ? "Modo dos jugadores: os turnáis en la misma pantalla."
+    : `A jugar contra ${seatName(1)}. ¡Empiezas tú!`);
 }
 
 /* Parse the setup inputs. Returns null (after warning) if unplayable. */
@@ -95,13 +121,17 @@ function newGame(size, replayMoves) {
   G.line = null;
   G.thinking = false;
   G.justMoved = false;
+  G.scored = false;
   $("why").innerHTML = "";
+  hideResult();
 
   if (replayMoves && replayMoves.length) {
+    G.replaying = true;
     for (const mv of replayMoves) {
       if (G.gameOver) break;
       if (!commitMove(mv, null)) break;
     }
+    G.replaying = false;
     G.cursor = G.history.length - 1;
     G.justMoved = false; // a loaded replay appears at once
   }
@@ -134,6 +164,12 @@ function commitMove(move, meta) {
     // Only the player who just moved can have completed a line.
     G.winnerSeat = out.winner == null ? null : seat;
     G.line = out.line;
+    if (!G.replaying) {
+      scoreResult(+1);
+      // A beat to see the winning line light up before the card covers it.
+      clearTimeout(G.resultTimer);
+      G.resultTimer = setTimeout(showResult, 1100);
+    }
   }
   return true;
 }
@@ -145,6 +181,34 @@ function humanMove(move) {
     render();
     maybeScheduleAI();
   }
+}
+
+/* Take back the last move — and the bot's reply too, so a person playing a
+   bot gets their own turn back rather than handing it to the bot. */
+function undo() {
+  if (!G.moves.length) {
+    toast("No hay ninguna jugada que deshacer.");
+    return;
+  }
+  clearTimeout(G.aiTimer);
+  G.thinking = false;
+  const againstBot = G.seats.includes(HUMAN) && !G.seats.every((s) => s === HUMAN);
+  const popOne = () => {
+    G.history.pop();
+    G.moves.pop();
+    const log = $("why");
+    if (G.showWhy && log.firstChild) log.firstChild.remove();
+  };
+  if (G.gameOver) scoreResult(-1);
+  popOne();
+  while (againstBot && G.moves.length && G.seats[seatToMove()] !== HUMAN) popOne();
+  G.cursor = G.history.length - 1;
+  G.gameOver = false;
+  G.winnerSeat = null;
+  G.line = null;
+  hideResult();
+  render();
+  maybeScheduleAI();
 }
 
 function maybeScheduleAI() {
@@ -176,20 +240,87 @@ function runAITurn(name) {
   maybeScheduleAI();
 }
 
+/* ---------------- score & result ---------------- */
+/* Add (+1) or take back (-1) the finished game's result. */
+function scoreResult(sign) {
+  if (sign > 0 && G.scored) return;
+  if (sign < 0 && !G.scored) return;
+  if (G.winnerSeat == null) G.draws += sign;
+  else G.score[G.winnerSeat] += sign;
+  G.scored = sign > 0;
+  renderScore();
+}
+
+function resetScore() {
+  G.score = [0, 0];
+  G.draws = 0;
+  G.scored = G.gameOver; // a finished game on screen is not re-counted
+  renderScore();
+}
+
+/* Rematch: the players swap colours — so the other one starts — and keep
+   their score, their name and their seat (person or bot). */
+function rematch() {
+  for (const i of [0, 1]) $(`seat-${i}`).value = G.seats[1 - i];
+  G.seats.reverse();
+  const names = [$("name-0").value, $("name-1").value];
+  $("name-0").value = names[1];
+  $("name-1").value = names[0];
+  G.score.reverse();
+  saveNames();
+  newGame();
+  toast(`Revancha: ahora empieza ${seatName(0)} con las rojas.`);
+}
+
+function showResult() {
+  const box = $("result");
+  const draw = G.winnerSeat == null;
+  $("result-emoji").textContent = draw ? "🤝" : G.winnerSeat === 0 ? "🔴" : "🟡";
+  $("result-title").textContent = draw ? "¡Empate!" : `¡Gana ${seatName(G.winnerSeat)}!`;
+  $("result-sub").textContent = draw
+    ? "El tablero se ha llenado sin cuatro en línea."
+    : `Cuatro en línea en ${G.moves.length} jugadas.`;
+  const burst = $("result-burst");
+  burst.innerHTML = draw ? "" : Array.from({ length: 26 }, (_, i) =>
+    `<i style="--i:${i};--x:${(i * 37) % 100};--h:${(i * 53) % 360}"></i>`).join("");
+  box.classList.remove("hidden");
+}
+
+function hideResult() {
+  clearTimeout(G.resultTimer);
+  $("result").classList.add("hidden");
+}
+
+/* ---------------- names ---------------- */
+function saveNames() {
+  try {
+    localStorage.setItem("c4-names", JSON.stringify([$("name-0").value, $("name-1").value]));
+  } catch {}
+}
+
+function loadNames() {
+  try {
+    const saved = JSON.parse(localStorage.getItem("c4-names") || "null");
+    if (Array.isArray(saved)) saved.forEach((n, i) => { if (n) $(`name-${i}`).value = n; });
+  } catch {}
+}
+
 /* ---------------- rendering ---------------- */
 function render() {
   renderStatus();
   renderTurns();
+  renderScore();
   renderBoard();
   renderXray();
   renderTimeline();
   updateButtons();
 }
 
-const PIECE = ["🔴", "🟡"];
-
+/* A person is called by their name; a bot by its own. */
 function seatName(i) {
-  return G.seats[i] === HUMAN ? `Jugador ${i + 1}` : G.seats[i];
+  if (G.seats[i] !== HUMAN) return G.seats[i];
+  const typed = ($(`name-${i}`).value || "").trim();
+  return typed || `Jugador ${i + 1}`;
 }
 
 function seatLabel(i) {
@@ -202,13 +333,31 @@ function resultText() {
     : `🎉 ¡Gana <strong>${esc(seatLabel(G.winnerSeat))}</strong> con cuatro en línea!`;
 }
 
-/* Light up the card of the side to move, and crown the winner. */
+/* Light up the card of the side to move, crown the winner, label each seat. */
 function renderTurns() {
   for (const i of [0, 1]) {
     const card = $(`turn-${i}`);
     card.classList.toggle("active", isLive() && !G.gameOver && seatToMove() === i);
     card.classList.toggle("winner", isLive() && G.gameOver && G.winnerSeat === i);
+    const bot = G.seats[i] !== HUMAN;
+    card.classList.toggle("is-bot", bot);
+    // A bot shows its own name instead of the editable one, which is kept for
+    // when the seat goes back to a person.
+    $(`botname-${i}`).textContent = bot ? `${playerIcon(G.seats[i])} ${G.seats[i]}` : "";
+    const meta = META.get(G.seats[i]);
+    $(`kind-${i}`).textContent = bot ? `Bot · ${levelOf(G.seats[i], meta)}` : "Persona";
   }
+}
+
+function levelOf(name, meta) {
+  const known = { random: "al azar", easy: "fácil", medium: "medio", hard: "difícil" };
+  return known[name] || (meta?.authors?.join(", ") ?? "bot");
+}
+
+function renderScore() {
+  $("score-0").textContent = String(G.score[0]);
+  $("score-1").textContent = String(G.score[1]);
+  $("score-draws").textContent = G.draws === 1 ? "1 empate" : `${G.draws} empates`;
 }
 
 function renderStatus() {
@@ -226,9 +375,9 @@ function renderStatus() {
   const who = G.seats[seat];
   const chip = seat === 0 ? "chip-a" : "chip-b";
   if (who === HUMAN) {
-    st.innerHTML = `<span class="chip ${chip}">${esc(seatName(seat))}</span> te toca: pulsa una columna para soltar tu ficha.`;
+    st.innerHTML = `<span class="chip ${chip}">${esc(seatName(seat))}</span> te toca: elige una columna.`;
   } else {
-    st.innerHTML = `<span class="chip ${chip}">${esc(who)}</span> ${G.thinking ? "está pensando…" : "juega a continuación…"}`;
+    st.innerHTML = `<span class="chip ${chip}">${esc(who)}</span> ${G.thinking ? "está pensando…" : "juega ahora…"}`;
   }
 }
 
@@ -267,13 +416,6 @@ function renderBoard() {
     drop,
     ghost: interactive ? seatToMove() + 1 : null,
   });
-
-  const old = board.parentElement.querySelector(".win-banner");
-  if (old) old.remove();
-  if (G.gameOver && isLive()) {
-    const text = G.winnerSeat == null ? "🤝 ¡Empate!" : `🏆 ¡Gana ${seatLabel(G.winnerSeat)}!`;
-    board.after(el("div", "win-banner", text));
-  }
 }
 
 function renderXray() {
@@ -295,9 +437,9 @@ function renderXray() {
     unclear: "no hay un resultado forzado a la vista",
   };
   box.innerHTML =
-    `<strong>Rayos X:</strong> cada columna puntuada con una búsqueda de 5 jugadas para quien mueve ` +
-    `(más es mejor). Veredicto: ${verdicts[an.verdict] || an.verdict}. ` +
-    (an.best != null ? `Mejor columna: <strong>${an.best + 1}</strong> (marcada).` : "");
+    `<strong>Rayos X:</strong> cada columna puntuada con una búsqueda de 5 jugadas ` +
+    `(más es mejor). ${verdicts[an.verdict] || an.verdict}. ` +
+    (an.best != null ? `Mejor columna: <strong>${an.best + 1}</strong>.` : "");
 }
 
 function logMove(m) {
@@ -306,7 +448,7 @@ function logMove(m) {
   const entry = el("div", `why-entry ${cls}`);
   const head = el("div", "head");
   head.appendChild(el("span", null, `${seatLabel(m.seat)} · columna ${m.move + 1}`));
-  head.appendChild(el("span", "time", m.elapsed != null ? `${m.elapsed.toFixed(1)} ms` : "persona"));
+  head.appendChild(el("span", "time", m.elapsed != null ? `${m.elapsed.toFixed(1)} ms` : ""));
   entry.appendChild(head);
   if (m.info && m.info.note) {
     entry.appendChild(el("div", "note", m.info.note));
@@ -326,6 +468,7 @@ function renderTimeline() {
   slider.max = G.history.length - 1;
   slider.value = G.cursor;
   $("tl-label").textContent = `jugada ${G.cursor} / ${G.history.length - 1}`;
+  $("log-count").textContent = G.moves.length ? `(${G.moves.length})` : "";
 }
 
 function gotoCursor(idx) {
@@ -349,6 +492,8 @@ function updateButtons() {
   $("btn-hint").disabled = !humanTurn;
   const aiTurn = isLive() && !G.gameOver && G.seats[seatToMove()] !== HUMAN;
   $("btn-play-ai").disabled = !aiTurn;
+  $("btn-play-ai").classList.toggle("hidden", G.seats.every((s) => s === HUMAN));
+  $("btn-undo").disabled = !G.moves.length || G.thinking;
 }
 
 function hint() {
@@ -363,7 +508,6 @@ function hint() {
   paintBoard($("board"), current(), {
     onPick: humanMove, targetColumn: an.best, ghost: seatToMove() + 1,
   });
-  setTimeout(() => renderBoard(), 1500);
 }
 
 /* ---------------- share / replay ---------------- */
@@ -407,7 +551,9 @@ function loadFromHash() {
 /* ---------------- wiring ---------------- */
 function setupPlay() {
   setupTimeline();
+  loadNames();
   $("btn-new").onclick = guard("Nueva partida", () => newGame());
+  $("btn-undo").onclick = guard("Deshacer", undo);
   $("btn-hint").onclick = guard("Pista", hint);
   $("btn-share").onclick = guard("Compartir", shareLink);
   $("btn-play-ai").onclick = guard("Turno del bot", () => {
@@ -415,6 +561,15 @@ function setupPlay() {
     const name = G.seats[seatToMove()];
     if (name !== HUMAN) runAITurn(name);
   });
+  $("btn-rematch").onclick = guard("Revancha", rematch);
+  $("btn-result-close").onclick = guard("Ver el tablero", hideResult);
+  $("btn-reset-score").onclick = guard("Marcador", () => { resetScore(); toast("Marcador a cero."); });
+  for (const btn of document.querySelectorAll("[data-preset]")) {
+    btn.onclick = guard("Modo de juego", () => applyPreset(btn.dataset.preset));
+  }
+  for (const i of [0, 1]) {
+    $(`name-${i}`).oninput = () => { saveNames(); renderStatus(); };
+  }
   $("cfg-delay").onchange = (e) => { G.delay = parseInt(e.target.value) || 0; };
   $("toggle-xray").onchange = guard("Rayos X", (e) => { G.showXray = e.target.checked; render(); });
   $("toggle-why").onchange = (e) => { G.showWhy = e.target.checked; };

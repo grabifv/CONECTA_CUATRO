@@ -1,78 +1,112 @@
 <section id="screen-game" class="screen hidden">
-  <div class="play">
-    <div class="play-main">
-      <!-- Who plays: one card per side; the active one lights up. -->
-      <div class="players">
-        <div class="player-card p1" id="turn-0">
-          <span class="disc" aria-hidden="true"></span>
-          <div class="player-info">
-            <span class="player-label">Jugador 1 · empieza</span>
-            <select id="seat-0" class="seat-select" aria-label="Jugador 1"></select>
-          </div>
+  <div class="arena">
+    <!-- Session scoreboard: one card per player, wins carried across games. -->
+    <div class="scorebar">
+      <div class="player-card p1" id="turn-0">
+        <span class="disc" aria-hidden="true"></span>
+        <div class="player-info">
+          <input id="name-0" class="player-name" type="text" maxlength="16" value="Jugador 1"
+                 aria-label="Nombre del jugador rojo" />
+          <span class="player-botname" id="botname-0"></span>
+          <span class="player-kind" id="kind-0">Persona</span>
         </div>
-        <span class="versus">VS</span>
-        <div class="player-card p2" id="turn-1">
-          <span class="disc" aria-hidden="true"></span>
-          <div class="player-info">
-            <span class="player-label">Jugador 2</span>
-            <select id="seat-1" class="seat-select" aria-label="Jugador 2"></select>
-          </div>
+        <span class="score" id="score-0">0</span>
+      </div>
+      <div class="score-mid">
+        <span class="vs">VS</span>
+        <span class="draws" id="score-draws">0 empates</span>
+      </div>
+      <div class="player-card p2" id="turn-1">
+        <span class="score" id="score-1">0</span>
+        <div class="player-info">
+          <input id="name-1" class="player-name" type="text" maxlength="16" value="Jugador 2"
+                 aria-label="Nombre del jugador amarillo" />
+          <span class="player-botname" id="botname-1"></span>
+          <span class="player-kind" id="kind-1">Persona</span>
         </div>
-      </div>
-
-      <div id="status" class="status">Elige el tamaño del tablero y pulsa «Nueva partida».</div>
-
-      <div class="board-wrap">
-        <div id="board" class="board"></div>
-      </div>
-
-      <div class="toolbar">
-        <button id="btn-new" class="btn primary">✨ Nueva partida</button>
-        <button id="btn-hint" class="btn" title="Sugiere una columna">💡 Pista</button>
-        <button id="btn-play-ai" class="btn" title="Hace jugar al bot ahora">⏭ Turno del bot</button>
-        <button id="btn-share" class="btn" title="Copia un enlace para repetir la partida">🔗 Compartir</button>
-      </div>
-
-      <div id="xray" class="xray hidden"></div>
-
-      <div class="timeline">
-        <button id="tl-first" class="btn small" title="Inicio">⏮</button>
-        <button id="tl-prev" class="btn small" title="Jugada anterior">◀</button>
-        <input id="tl-slider" type="range" min="0" max="0" value="0" aria-label="Jugada" />
-        <button id="tl-next" class="btn small" title="Jugada siguiente">▶</button>
-        <button id="tl-last" class="btn small" title="Ir al final">⏭</button>
-        <span id="tl-label" class="tl-label">jugada 0 / 0</span>
+        <span class="disc" aria-hidden="true"></span>
       </div>
     </div>
 
-    <aside class="play-side">
-      <div class="panel controls">
-        <h3>⚙️ Ajustes</h3>
-        <div class="size-row">
-          <label>Filas
-            <input id="cfg-rows" type="number" min="4" max="10" value="6" />
-          </label>
-          <span class="times">×</span>
-          <label>Columnas
-            <input id="cfg-cols" type="number" min="4" max="10" value="7" />
-          </label>
+    <!-- One click to set both seats. -->
+    <div class="quick" role="group" aria-label="Modo de juego">
+      <button class="chip-btn" data-preset="friends">👥 Dos jugadores</button>
+      <span class="quick-sep">o contra un bot:</span>
+      <button class="chip-btn" data-preset="easy">🌱 Fácil</button>
+      <button class="chip-btn" data-preset="medium">🧠 Medio</button>
+      <button class="chip-btn" data-preset="hard">⚔️ Difícil</button>
+    </div>
+
+    <div id="status" class="status">Pulsa «Nueva partida» para empezar.</div>
+
+    <div class="board-wrap">
+      <div id="board" class="board"></div>
+
+      <!-- Shown when a game ends; the board stays visible underneath. -->
+      <div id="result" class="result hidden">
+        <div class="burst" id="result-burst" aria-hidden="true"></div>
+        <div class="result-card">
+          <div class="result-emoji" id="result-emoji">🏆</div>
+          <h2 id="result-title">¡Victoria!</h2>
+          <p id="result-sub" class="muted"></p>
+          <div class="result-actions">
+            <button id="btn-rematch" class="btn primary big">🔁 Revancha</button>
+            <button id="btn-result-close" class="btn big">Ver el tablero</button>
+          </div>
         </div>
-        <label class="inline">Pausa del bot (ms)
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <button id="btn-new" class="btn primary">✨ Nueva partida</button>
+      <button id="btn-undo" class="btn" title="Deshace la última jugada">↩ Deshacer</button>
+      <button id="btn-hint" class="btn" title="Sugiere una columna">💡 Pista</button>
+      <button id="btn-play-ai" class="btn" title="Hace jugar al bot ahora">⏭ Turno del bot</button>
+      <button id="btn-share" class="btn" title="Copia un enlace para repetir la partida">🔗 Compartir</button>
+    </div>
+
+    <div id="xray" class="xray hidden"></div>
+
+    <details class="drawer">
+      <summary>⚙️ Opciones</summary>
+      <div class="drawer-body options">
+        <label>🔴 Jugador rojo (empieza)
+          <select id="seat-0" class="seat-select"></select>
+        </label>
+        <label>🟡 Jugador amarillo
+          <select id="seat-1" class="seat-select"></select>
+        </label>
+        <label>Filas
+          <input id="cfg-rows" type="number" min="4" max="10" value="6" />
+        </label>
+        <label>Columnas
+          <input id="cfg-cols" type="number" min="4" max="10" value="7" />
+        </label>
+        <label>Pausa del bot (ms)
           <input id="cfg-delay" type="number" min="0" max="5000" step="100" value="600" />
         </label>
         <div class="toggles">
-          <label class="switch"><input type="checkbox" id="toggle-xray" /><span class="knob"></span> Rayos X</label>
-          <label class="switch"><input type="checkbox" id="toggle-why" checked /><span class="knob"></span> Registro de jugadas</label>
+          <label class="switch"><input type="checkbox" id="toggle-xray" /><span class="knob"></span> Rayos X: puntuar columnas</label>
+          <label class="switch"><input type="checkbox" id="toggle-why" checked /><span class="knob"></span> Apuntar las jugadas</label>
         </div>
-        <p class="muted small">El tamaño se aplica al pulsar «Nueva partida». Para jugar contra un amigo, pon «Persona» en los dos jugadores.</p>
+        <button id="btn-reset-score" class="btn small">🧽 Poner el marcador a cero</button>
+        <p class="muted small">El tamaño del tablero se aplica en la siguiente partida.</p>
       </div>
+    </details>
 
-      <div class="panel why">
-        <h3>📝 Registro</h3>
-        <div id="why" class="why-body">
-          <p class="muted">Aquí aparecen las jugadas, lo que tarda cada bot y por qué elige cada columna.</p>
+    <details class="drawer">
+      <summary>📝 Jugadas <span class="muted small" id="log-count"></span></summary>
+      <div class="drawer-body">
+        <div class="timeline">
+          <button id="tl-first" class="btn small" title="Inicio">⏮</button>
+          <button id="tl-prev" class="btn small" title="Jugada anterior">◀</button>
+          <input id="tl-slider" type="range" min="0" max="0" value="0" aria-label="Jugada" />
+          <button id="tl-next" class="btn small" title="Jugada siguiente">▶</button>
+          <button id="tl-last" class="btn small" title="Ir al final">⏭</button>
+          <span id="tl-label" class="tl-label">jugada 0 / 0</span>
         </div>
+        <div id="why" class="why-body"></div>
       </div>
-    </aside>
+    </details>
   </div>
 </section>

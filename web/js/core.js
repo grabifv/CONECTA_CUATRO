@@ -162,6 +162,21 @@ function paintBoard(container, state, {
   const grid = el("div", "c4-grid");
   grid.style.gridTemplateColumns = `repeat(${columns}, var(--cell))`;
 
+  // Above the board, the piece about to be played hovers over the column under
+  // the pointer — and can be clicked too, like the column itself.
+  const slots = [];
+  if (interactive && ghost) {
+    const zone = el("div", "c4-dropzone");
+    zone.style.gridTemplateColumns = `repeat(${columns}, var(--cell))`;
+    for (let c = 0; c < columns; c++) {
+      const slot = el("div", `drop-slot p${ghost}`);
+      if (state[0][c] === 0) slot.addEventListener("click", () => onPick(c));
+      slots.push(slot);
+      zone.appendChild(slot);
+    }
+    container.appendChild(zone);
+  }
+
   if (scores) {
     for (let c = 0; c < columns; c++) {
       grid.appendChild(el("div", "c4-score", scores[c] == null ? "" : String(scores[c])));
@@ -202,10 +217,12 @@ function paintBoard(container, state, {
         cell.addEventListener("mouseenter", () => {
           byColumn[c].forEach((x) => x.classList.add("preview"));
           if (ghostClass && landing) landing.classList.add(ghostClass);
+          if (slots[c]) slots[c].classList.add("on");
         });
         cell.addEventListener("mouseleave", () => {
           byColumn[c].forEach((x) => x.classList.remove("preview"));
           if (ghostClass && landing) landing.classList.remove(ghostClass);
+          if (slots[c]) slots[c].classList.remove("on");
         });
         cell.addEventListener("click", () => onPick(c));
       }
